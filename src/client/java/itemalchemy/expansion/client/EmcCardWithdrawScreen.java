@@ -2,14 +2,14 @@ package itemalchemy.expansion.client;
 
 import itemalchemy.expansion.client.util.GuiRenderUtil;
 import itemalchemy.expansion.item.EmcCardItem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import itemalchemy.expansion.compat.port.FilteredEditBox;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 
 /**
  * EMC 卡拿取界面：输入拿取数量，从卡内转入玩家 Team EMC。
@@ -23,15 +23,15 @@ public class EmcCardWithdrawScreen extends Screen {
     private static final int PADDING = 14;
     private static final int LINE_HEIGHT = 16;
 
-    private TextFieldWidget amountField;
-    private Text errorText;
+    private FilteredEditBox amountField;
+    private Component errorText;
 
     public EmcCardWithdrawScreen() {
         super(EmcCardMainScreen.getCardName());
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
@@ -42,39 +42,39 @@ public class EmcCardWithdrawScreen extends Screen {
         int fieldY = this.height / 2 - 6;
 
         int fieldWidth = 180;
-        amountField = new TextFieldWidget(this.textRenderer,
+        amountField = new FilteredEditBox(this.font,
                 centerX - fieldWidth / 2, fieldY, fieldWidth, 16,
-                Text.translatable("itemalchemy-expansion.emc_card.amount_field"));
+                Component.translatable("itemalchemy-expansion.emc_card.amount_field"));
         amountField.setMaxLength(18);
         amountField.setTextPredicate(this::isNumeric);
-        amountField.setText("");
-        addDrawableChild(amountField);
+        amountField.setValue("");
+        addRenderableWidget(amountField);
         this.setFocused(amountField);
 
         // 快捷按钮：全拿 / 拿一半
         int quickY = fieldY + 22;
         int quickWidth = 88;
         int gap = 4;
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.withdraw.all"),
-                b -> amountField.setText(String.valueOf(getCardEmc())))
-                .dimensions(centerX - quickWidth - gap / 2, quickY, quickWidth, 16).build());
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.withdraw.half"),
-                b -> amountField.setText(String.valueOf(getCardEmc() / 2)))
-                .dimensions(centerX + gap / 2, quickY, quickWidth, 16).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.withdraw.all"),
+                b -> amountField.setValue(String.valueOf(getCardEmc())))
+                .bounds(centerX - quickWidth - gap / 2, quickY, quickWidth, 16).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.withdraw.half"),
+                b -> amountField.setValue(String.valueOf(getCardEmc() / 2)))
+                .bounds(centerX + gap / 2, quickY, quickWidth, 16).build());
 
         int btnY = quickY + 24;
         int btnWidth = 84;
         int gap2 = 8;
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.confirm"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.confirm"),
                 b -> onConfirm())
-                .dimensions(centerX - btnWidth - gap2 / 2, btnY, btnWidth, 20).build());
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.cancel"),
-                b -> MinecraftClient.getInstance().setScreen(new EmcCardMainScreen()))
-                .dimensions(centerX + gap2 / 2, btnY, btnWidth, 20).build());
+                .bounds(centerX - btnWidth - gap2 / 2, btnY, btnWidth, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.cancel"),
+                b -> Minecraft.getInstance().setScreenAndShow(new EmcCardMainScreen()))
+                .bounds(centerX + gap2 / 2, btnY, btnWidth, 20).build());
     }
 
     private boolean isNumeric(String s) {
@@ -87,38 +87,38 @@ public class EmcCardWithdrawScreen extends Screen {
     }
 
     private void onConfirm() {
-        String raw = amountField.getText().trim();
+        String raw = amountField.getValue().trim();
         if (raw.isEmpty()) {
-            errorText = Text.translatable("itemalchemy-expansion.emc_card.fail.empty")
-                    .formatted(Formatting.RED);
+            errorText = Component.translatable("itemalchemy-expansion.emc_card.fail.empty")
+                    .withStyle(ChatFormatting.RED);
             return;
         }
         long amount;
         try {
             amount = Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            errorText = Text.translatable("itemalchemy-expansion.emc_card.fail.parse")
-                    .formatted(Formatting.RED);
+            errorText = Component.translatable("itemalchemy-expansion.emc_card.fail.parse")
+                    .withStyle(ChatFormatting.RED);
             return;
         }
         if (amount <= 0) {
-            errorText = Text.translatable("itemalchemy-expansion.emc_card.fail.nonpositive")
-                    .formatted(Formatting.RED);
+            errorText = Component.translatable("itemalchemy-expansion.emc_card.fail.nonpositive")
+                    .withStyle(ChatFormatting.RED);
             return;
         }
         long cardEmc = getCardEmc();
         if (amount > cardEmc) {
-            errorText = Text.translatable("itemalchemy-expansion.emc_card.withdraw.fail.insufficient",
-                    Text.literal(EmcCardItem.formatNumber(cardEmc))).formatted(Formatting.RED);
+            errorText = Component.translatable("itemalchemy-expansion.emc_card.withdraw.fail.insufficient",
+                    Component.literal(EmcCardItem.formatNumber(cardEmc))).withStyle(ChatFormatting.RED);
             return;
         }
         EmcCardClientNetwork.sendWithdraw(amount);
-        MinecraftClient.getInstance().setScreen(new EmcCardMainScreen());
+        Minecraft.getInstance().setScreenAndShow(new EmcCardMainScreen());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // The 26.2 GUI manager already extracts the screen background.
 
         int centerX = this.width / 2;
         int panelLeft = centerX - PANEL_WIDTH / 2;
@@ -128,11 +128,11 @@ public class EmcCardWithdrawScreen extends Screen {
         context.fill(panelLeft, panelTop, panelLeft + PANEL_WIDTH, panelTop + panelHeight, 0xE0101420);
         GuiRenderUtil.drawBorder(context, panelLeft, panelTop, PANEL_WIDTH, panelHeight, 0xFF5060A0);
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.centeredText(this.font, this.title,
                 centerX, panelTop + PADDING, 0xFFE0E0FF);
         // 副标题：操作类型
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.emc_card.withdraw.title"),
+        context.centeredText(this.font,
+                Component.translatable("itemalchemy-expansion.emc_card.withdraw.title"),
                 centerX, panelTop + PADDING + 11, 0xFF8080A0);
 
         int lineY = panelTop + PADDING + 23;
@@ -147,27 +147,27 @@ public class EmcCardWithdrawScreen extends Screen {
         drawDataRow(context, "itemalchemy-expansion.emc_card.player_emc",
                 EmcCardItem.formatNumber(playerEmc), panelLeft, dataY + LINE_HEIGHT, 0xFFC0C0C0, 0xFFFFFF55);
 
-        Text fieldLabel = Text.translatable("itemalchemy-expansion.emc_card.withdraw.field_label")
-                .formatted(Formatting.GRAY);
-        context.drawText(this.textRenderer, fieldLabel,
+        Component fieldLabel = Component.translatable("itemalchemy-expansion.emc_card.withdraw.field_label")
+                .withStyle(ChatFormatting.GRAY);
+        context.text(this.font, fieldLabel,
                 panelLeft + PADDING, amountField.getY() - 12, 0xFFA0A0C0, false);
 
         if (errorText != null) {
-            context.drawCenteredTextWithShadow(this.textRenderer, errorText,
+            context.centeredText(this.font, errorText,
                     centerX, amountField.getY() + 82, 0xFFFF5555);
         }
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
-    private void drawDataRow(DrawContext context, String labelKey, String valueStr,
+    private void drawDataRow(GuiGraphicsExtractor context, String labelKey, String valueStr,
                              int panelLeft, int y, int labelColor, int valueColor) {
-        Text label = Text.translatable(labelKey);
-        Text value = Text.literal(valueStr);
-        context.drawText(this.textRenderer, label,
+        Component label = Component.translatable(labelKey);
+        Component value = Component.literal(valueStr);
+        context.text(this.font, label,
                 panelLeft + PADDING, y, labelColor, false);
-        context.drawText(this.textRenderer, value,
-                panelLeft + PANEL_WIDTH - PADDING - textRenderer.getWidth(value), y, valueColor, false);
+        context.text(this.font, value,
+                panelLeft + PANEL_WIDTH - PADDING - font.width(value), y, valueColor, false);
     }
 
     private long getCardEmc() {

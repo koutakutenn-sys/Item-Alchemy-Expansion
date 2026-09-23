@@ -5,12 +5,12 @@ import itemalchemy.expansion.config.IAExpConfig;
 import itemalchemy.expansion.config.IAExpConfigHolder;
 import itemalchemy.expansion.nbt.ShulkerBoxSupport;
 import itemalchemy.expansion.search.SearchMatcher;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.network.chat.Component;
 import net.pitan76.itemalchemy.client.screen.AlchemyTableScreen;
 import net.pitan76.itemalchemy.gui.inventory.ExtractInventory;
 import net.pitan76.itemalchemy.gui.screen.AlchemyTableScreenHandler;
@@ -45,7 +45,7 @@ public final class AlchemyTableSlotMatchOverlay {
     /**
      * 在 {@code SimpleInventoryScreen.renderOverride} RETURN 后触发。
      */
-    public static void onAfterRender(AlchemyTableScreen screen, DrawContext context, int mouseX, int mouseY) {
+    public static void onAfterRender(AlchemyTableScreen screen, GuiGraphicsExtractor context, int mouseX, int mouseY) {
         try {
             IAExpConfig config = IAExpConfigHolder.get();
             if (!config.searchShulkerContents) return;
@@ -90,10 +90,10 @@ public final class AlchemyTableSlotMatchOverlay {
         }
 
         // Shift 时让出，由 Shift 预览显示内容物 + 红框标记
-        if (!Screen.hasShiftDown()) {
-            Slot hovered = GuiRenderUtil.getHoveredSlot(screen);
+        if (!net.minecraft.client.Minecraft.getInstance().hasShiftDown()) {
+            Slot hovered = GuiRenderUtil.getHoveredSlot(screen, mouseX, mouseY);
             if (hovered != null) {
-                int hoveredIndex = hovered.id; // Slot.id 是 vanilla public 字段
+                int hoveredIndex = hovered.index; // Slot.id 是 vanilla public 字段
                 SearchMatchCache.SlotMatch hoverMatch = matches.get(hoveredIndex);
                 if (hoverMatch != null && hoverMatch.matchType == SearchMatcher.MatchType.SHULKER_MATCH
                         && !hoverMatch.matchedContents.isEmpty()) {
@@ -109,14 +109,15 @@ public final class AlchemyTableSlotMatchOverlay {
      * <p>用矩阵 scale(0.5) 把 16×16 图标缩到 8×8，位置在槽位右下角 (slotX+9, slotY+9)。
      * z 提升到 BADGE_Z 确保在槽位图标之上。</p>
      */
-    private static void renderBadge(DrawContext context, int slotX, int slotY, ItemStack content) {
-        context.getMatrices().push();
+    private static void renderBadge(GuiGraphicsExtractor context, int slotX, int slotY, ItemStack content) {
+        context.pose().pushMatrix();
         try {
-            context.getMatrices().translate(slotX + 9, slotY + 9, BADGE_Z);
-            context.getMatrices().scale(0.5f, 0.5f, 1.0f);
-            context.drawItem(content, 0, 0);
+            context.nextStratum();
+            context.pose().translate(slotX + 9, slotY + 9);
+            context.pose().scale(0.5f, 0.5f);
+            context.item(content, 0, 0);
         } finally {
-            context.getMatrices().pop();
+            context.pose().popMatrix();
         }
     }
 
@@ -126,41 +127,41 @@ public final class AlchemyTableSlotMatchOverlay {
      * <p>位置：鼠标右下方 (mouseX+12, mouseY+12)，边界检查确保在屏幕内。
      * 框内每行一个匹配物名称，最多显示 6 个，超出显示 "+N"。</p>
      */
-    private static void renderMatchListTooltip(DrawContext context, int mouseX, int mouseY, List<ItemStack> matchedContents) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        int screenW = client.getWindow().getScaledWidth();
-        int screenH = client.getWindow().getScaledHeight();
+    private static void renderMatchListTooltip(GuiGraphicsExtractor context, int mouseX, int mouseY, List<ItemStack> matchedContents) {
+        Minecraft client = Minecraft.getInstance();
+        int screenW = client.getWindow().getGuiScaledWidth();
+        int screenH = client.getWindow().getGuiScaledHeight();
 
         // 按物品 id 去重，保留第一个名称
         java.util.LinkedHashMap<String, String> seen = new java.util.LinkedHashMap<>();
         for (ItemStack s : matchedContents) {
             if (s == null || s.isEmpty()) continue;
-            String id = net.minecraft.registry.Registries.ITEM.getId(s.getItem()).toString();
+            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem()).toString();
             if (!seen.containsKey(id)) {
-                seen.put(id, s.getName().getString());
+                seen.put(id, s.getHoverName().getString());
             }
         }
         if (seen.isEmpty()) return;
 
-        Text title = Text.translatable("itemalchemy-expansion.search.match_list_title");
-        int titleWidth = client.textRenderer.getWidth(title);
+        Component title = Component.translatable("itemalchemy-expansion.search.match_list_title");
+        int titleWidth = client.font.width(title);
 
         int maxLineWidth = titleWidth;
         java.util.List<String> names = new java.util.ArrayList<>(seen.values());
         int shownCount = Math.min(names.size(), 6);
         for (int i = 0; i < shownCount; i++) {
-            int w = client.textRenderer.getWidth(names.get(i));
+            int w = client.font.width(names.get(i));
             if (w > maxLineWidth) maxLineWidth = w;
         }
         boolean overflow = names.size() > 6;
         if (overflow) {
-            Text more = Text.translatable("itemalchemy-expansion.search.match_list_more", names.size() - 6);
-            int w = client.textRenderer.getWidth(more);
+            Component more = Component.translatable("itemalchemy-expansion.search.match_list_more", names.size() - 6);
+            int w = client.font.width(more);
             if (w > maxLineWidth) maxLineWidth = w;
         }
 
         int padding = 4;
-        int lineHeight = client.textRenderer.fontHeight + 1;
+        int lineHeight = client.font.lineHeight + 1;
         int boxWidth = maxLineWidth + padding * 2;
         int boxHeight = padding * 2 + lineHeight + (shownCount + (overflow ? 1 : 0)) * lineHeight;
 
@@ -172,28 +173,28 @@ public final class AlchemyTableSlotMatchOverlay {
         if (boxX < 0) boxX = 0;
         if (boxY < 0) boxY = 0;
 
-        context.getMatrices().push();
+        context.pose().pushMatrix();
         try {
-            context.getMatrices().translate(0, 0, 400); // 在普通 tooltip 之上
+            context.nextStratum(); // 在普通 tooltip 之上
 
             context.fill(boxX, boxY, boxX + boxWidth, boxY + boxHeight, 0xF0101010);
             GuiRenderUtil.drawBorder(context, boxX, boxY, boxWidth, boxHeight, 0xFF505050);
 
             int textX = boxX + padding;
             int textY = boxY + padding;
-            context.drawTextWithShadow(client.textRenderer, title, textX, textY, 0xFFFFD700);
+            context.text(client.font, title, textX, textY, 0xFFFFD700);
             textY += lineHeight;
 
             for (int i = 0; i < shownCount; i++) {
-                context.drawTextWithShadow(client.textRenderer, names.get(i), textX, textY, 0xFFFFFF);
+                context.text(client.font, names.get(i), textX, textY, 0xFFFFFF);
                 textY += lineHeight;
             }
             if (overflow) {
-                Text more = Text.translatable("itemalchemy-expansion.search.match_list_more", names.size() - 6);
-                context.drawTextWithShadow(client.textRenderer, more, textX, textY, 0xFFAAAAAA);
+                Component more = Component.translatable("itemalchemy-expansion.search.match_list_more", names.size() - 6);
+                context.text(client.font, more, textX, textY, 0xFFAAAAAA);
             }
         } finally {
-            context.getMatrices().pop();
+            context.pose().popMatrix();
         }
     }
 

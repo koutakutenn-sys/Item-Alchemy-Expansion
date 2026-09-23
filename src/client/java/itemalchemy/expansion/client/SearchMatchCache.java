@@ -1,7 +1,7 @@
 package itemalchemy.expansion.client;
 
 import itemalchemy.expansion.search.SearchMatcher;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 import net.pitan76.itemalchemy.gui.inventory.ExtractInventory;
 import net.pitan76.itemalchemy.gui.screen.AlchemyTableScreenHandler;
 import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;

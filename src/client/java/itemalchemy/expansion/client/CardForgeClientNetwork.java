@@ -2,9 +2,9 @@ package itemalchemy.expansion.client;
 
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.network.CardForgeNetwork;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.network.PacketByteBuf;
+import itemalchemy.expansion.compat.port.ClientPlayNetworking;
+import itemalchemy.expansion.compat.port.PacketByteBufs;
+import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +24,7 @@ public final class CardForgeClientNetwork {
 
     public static void sendAction(byte action) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeByte(action);
             ClientPlayNetworking.send(CardForgeNetwork.ACTION_ID, buf);
         } catch (Throwable t) {
@@ -35,9 +35,9 @@ public final class CardForgeClientNetwork {
     /** 发送绑定动作（C2S，携带玩家名） */
     public static void sendBind(String playerName) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeByte(CardForgeNetwork.ACTION_BIND);
-            buf.writeString(playerName);
+            buf.writeUtf(playerName);
             ClientPlayNetworking.send(CardForgeNetwork.ACTION_ID, buf);
         } catch (Throwable t) {
             ItemAlchemyExpansion.LOGGER.warn("[IAExp] card forge: failed to send bind: {}", t.toString());
@@ -52,7 +52,7 @@ public final class CardForgeClientNetwork {
     /** 发送设置绑定限额（C2S，携带单次/总额） */
     public static void sendSetLimits(long single, long total) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeByte(CardForgeNetwork.ACTION_SET_LIMITS);
             buf.writeLong(single);
             buf.writeLong(total);
@@ -74,7 +74,7 @@ public final class CardForgeClientNetwork {
                     final int n = buf.readVarInt();
                     final List<String> names = new ArrayList<>(n);
                     for (int i = 0; i < n; i++) {
-                        names.add(buf.readString());
+                        names.add(buf.readUtf());
                     }
                     client.execute(() -> onlinePlayers = names);
                 });

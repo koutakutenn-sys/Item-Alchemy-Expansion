@@ -3,13 +3,13 @@ package itemalchemy.expansion.client;
 import itemalchemy.expansion.client.util.GuiRenderUtil;
 import itemalchemy.expansion.item.EmcCardItem;
 import itemalchemy.expansion.network.EmcCardNetwork;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import itemalchemy.expansion.compat.port.FilteredEditBox;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
 
 /**
  * EMC 卡设置界面：快捷充能开关 + 金额配置。
@@ -19,14 +19,14 @@ public class EmcCardConfigScreen extends Screen {
     private static final int PANEL_WIDTH = 260;
     private static final int PADDING = 14;
 
-    private TextFieldWidget amountField;
+    private FilteredEditBox amountField;
 
     public EmcCardConfigScreen() {
         super(EmcCardMainScreen.getCardName());
     }
 
     @Override
-    public boolean shouldPause() { return false; }
+    public boolean isPauseScreen() { return false; }
 
     @Override
     protected void init() {
@@ -36,31 +36,31 @@ public class EmcCardConfigScreen extends Screen {
         boolean enabled = EmcCardItem.isQuickChargeEnabled(card);
 
         // 快捷充能开关按钮
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.config.quickcharge")
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.config.quickcharge")
                         .append(": ")
-                        .append(Text.translatable(enabled
+                        .append(Component.translatable(enabled
                                 ? "itemalchemy-expansion.emc_card.config.quickcharge.enabled"
                                 : "itemalchemy-expansion.emc_card.config.quickcharge.disabled")),
                 b -> EmcCardClientNetwork.sendConfig(EmcCardNetwork.CFG_TOGGLE_QUICK, 0))
-                .dimensions(centerX - 120, panelTop + 50, 240, 20).build());
+                .bounds(centerX - 120, panelTop + 50, 240, 20).build());
 
         // 金额输入框
         int fieldY = panelTop + 80;
         int fieldWidth = 160;
-        amountField = new TextFieldWidget(this.textRenderer,
+        amountField = new FilteredEditBox(this.font,
                 centerX - fieldWidth / 2, fieldY, fieldWidth, 16,
-                Text.literal(String.valueOf(EmcCardItem.getQuickChargeAmount(card))));
+                Component.literal(String.valueOf(EmcCardItem.getQuickChargeAmount(card))));
         amountField.setMaxLength(18);
         amountField.setTextPredicate(this::isNumeric);
-        amountField.setText(String.valueOf(EmcCardItem.getQuickChargeAmount(card)));
-        addDrawableChild(amountField);
+        amountField.setValue(String.valueOf(EmcCardItem.getQuickChargeAmount(card)));
+        addRenderableWidget(amountField);
 
         // 设置金额按钮
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.config.quickcharge.amount"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.config.quickcharge.amount"),
                 b -> {
-                    String raw = amountField.getText().trim();
+                    String raw = amountField.getValue().trim();
                     if (!raw.isEmpty()) {
                         try {
                             long val = Long.parseLong(raw);
@@ -69,13 +69,13 @@ public class EmcCardConfigScreen extends Screen {
                         } catch (NumberFormatException ignored) {}
                     }
                 })
-                .dimensions(centerX - 60, fieldY + 22, 120, 20).build());
+                .bounds(centerX - 60, fieldY + 22, 120, 20).build());
 
         // 返回按钮
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.cancel"),
-                b -> MinecraftClient.getInstance().setScreen(new EmcCardMainScreen()))
-                .dimensions(centerX - 60, fieldY + 50, 120, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.cancel"),
+                b -> Minecraft.getInstance().setScreenAndShow(new EmcCardMainScreen()))
+                .bounds(centerX - 60, fieldY + 50, 120, 20).build());
     }
 
     private boolean isNumeric(String s) {
@@ -88,8 +88,8 @@ public class EmcCardConfigScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // The 26.2 GUI manager already extracts the screen background.
         int centerX = this.width / 2;
         int panelLeft = centerX - PANEL_WIDTH / 2;
         int panelTop = this.height / 2 - 90;
@@ -98,22 +98,22 @@ public class EmcCardConfigScreen extends Screen {
         context.fill(panelLeft, panelTop, panelLeft + PANEL_WIDTH, panelTop + panelHeight, 0xE0101420);
         GuiRenderUtil.drawBorder(context, panelLeft, panelTop, PANEL_WIDTH, panelHeight, 0xFF5060A0);
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.centeredText(this.font, this.title,
                 centerX, panelTop + PADDING, 0xFFE0E0FF);
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.emc_card.config.title"),
+        context.centeredText(this.font,
+                Component.translatable("itemalchemy-expansion.emc_card.config.title"),
                 centerX, panelTop + PADDING + 11, 0xFF8080A0);
 
         int lineY = panelTop + PADDING + 23;
         context.fill(panelLeft + PADDING, lineY, panelLeft + PANEL_WIDTH - PADDING, lineY + 1, 0xFF405080);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     private ItemStack getCardStack() {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.player == null) return ItemStack.EMPTY;
-        ItemStack mainHand = mc.player.getMainHandStack();
+        ItemStack mainHand = mc.player.getMainHandItem();
         if (mainHand.isEmpty() || !(mainHand.getItem() instanceof EmcCardItem)) return ItemStack.EMPTY;
         return mainHand;
     }

@@ -3,13 +3,13 @@ package itemalchemy.expansion.client;
 import itemalchemy.expansion.IAExpServices;
 import itemalchemy.expansion.client.util.GuiRenderUtil;
 import itemalchemy.expansion.nbt.ItemVariantKey;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +52,7 @@ public class OverwritePreciseConfirmScreen extends Screen {
                                           Map<String, Long> variants,
                                           java.util.function.Consumer<List<String>> confirmCallback,
                                           Runnable cancelCallback) {
-        super(Text.translatable("itemalchemy-expansion.overwrite_precise.title"));
+        super(Component.translatable("itemalchemy-expansion.overwrite_precise.title"));
         this.itemId = itemId;
         this.newGeneralEmc = newGeneralEmc;
         this.confirmCallback = confirmCallback;
@@ -82,7 +82,7 @@ public class OverwritePreciseConfirmScreen extends Screen {
         String displayName() {
             try {
                 if (!stack.isEmpty()) {
-                    String n = stack.getName().getString();
+                    String n = stack.getHoverName().getString();
                     if (n != null && !n.isEmpty()) return n;
                 }
             } catch (Throwable ignore) {}
@@ -93,7 +93,7 @@ public class OverwritePreciseConfirmScreen extends Screen {
     // ============ 生命周期 ============
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return true;
     }
 
@@ -106,20 +106,20 @@ public class OverwritePreciseConfirmScreen extends Screen {
         int totalW = btnW * 3 + gap * 2;
         int startX = panelX + (panelW - totalW) / 2;
 
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.overwrite_precise.overwrite_all"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.overwrite_precise.overwrite_all"),
                 b -> setAllOverwrite(true))
-                .dimensions(startX, btnY, btnW, 20).build());
+                .bounds(startX, btnY, btnW, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.overwrite_precise.keep_all"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.overwrite_precise.keep_all"),
                 b -> setAllOverwrite(false))
-                .dimensions(startX + btnW + gap, btnY, btnW, 20).build());
+                .bounds(startX + btnW + gap, btnY, btnW, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.overwrite_precise.confirm"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.overwrite_precise.confirm"),
                 b -> onConfirm())
-                .dimensions(startX + (btnW + gap) * 2, btnY, btnW, 20).build());
+                .bounds(startX + (btnW + gap) * 2, btnY, btnW, 20).build());
     }
 
     private void layout() {
@@ -132,30 +132,32 @@ public class OverwritePreciseConfirmScreen extends Screen {
     // ============ 交互 ============
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x(), mouseY = event.y();
+        int button = event.button();
         if (button == 0 && hitListRow(mouseX, mouseY) >= 0) {
             int idx = hitListRow(mouseX, mouseY);
             entries.get(idx).overwrite = !entries.get(idx).overwrite;
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double amount) {
         int listTop = panelY + LIST_TOP_OFFSET;
         int listBottom = panelY + panelH - LIST_BOTTOM_OFFSET;
         int listHeight = listBottom - listTop;
         int totalHeight = entries.size() * ROW_H;
         int maxScroll = Math.max(0, totalHeight - listHeight);
-        if (maxScroll <= 0) return super.mouseScrolled(mouseX, mouseY, amount);
+        if (maxScroll <= 0) return super.mouseScrolled(mouseX, mouseY, horizontal, amount);
         scrollOffset -= (int) (amount * ROW_H);
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
         return true;
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         if (cancelCallback != null) cancelCallback.run();
     }
 
@@ -181,14 +183,14 @@ public class OverwritePreciseConfirmScreen extends Screen {
             if (e.overwrite) toClear.add(e.vkStr);
         }
         if (confirmCallback != null) confirmCallback.accept(toClear);
-        this.client.setScreen(null);
+        this.minecraft.setScreenAndShow(null);
     }
 
     // ============ 渲染 ============
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // The 26.2 GUI manager already extracts the screen background.
 
         int listTop = panelY + LIST_TOP_OFFSET;
         int listBottom = panelY + panelH - LIST_BOTTOM_OFFSET;
@@ -199,21 +201,21 @@ public class OverwritePreciseConfirmScreen extends Screen {
         context.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xC0101010);
         GuiRenderUtil.drawBorder(context, panelX, panelY, panelW, panelH, 0xFF404040);
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.centeredText(this.font, this.title,
                 this.width / 2, panelY + 10, 0xFFFFFF);
         // 副标题：物品 ID + 新通用价
-        Text subtitle = Text.translatable("itemalchemy-expansion.overwrite_precise.subtitle",
-                Text.literal(itemId), Text.literal(String.valueOf(newGeneralEmc)));
-        context.drawText(this.textRenderer, subtitle, listLeft, panelY + 24, 0xA0A0A0, false);
-        Text desc = Text.translatable("itemalchemy-expansion.overwrite_precise.desc");
-        context.drawText(this.textRenderer, desc, listLeft, panelY + 36, 0x808080, false);
+        Component subtitle = Component.translatable("itemalchemy-expansion.overwrite_precise.subtitle",
+                Component.literal(itemId), Component.literal(String.valueOf(newGeneralEmc)));
+        context.text(this.font, subtitle, listLeft, panelY + 24, 0xA0A0A0, false);
+        Component desc = Component.translatable("itemalchemy-expansion.overwrite_precise.desc");
+        context.text(this.font, desc, listLeft, panelY + 36, 0x808080, false);
 
         context.fill(listLeft, listTop, listRight, listBottom, 0x60000000);
         GuiRenderUtil.drawBorder(context, listLeft, listTop, listWidth, listBottom - listTop, 0xFF303030);
 
         if (entries.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.overwrite_precise.empty"),
+            context.centeredText(this.font,
+                    Component.translatable("itemalchemy-expansion.overwrite_precise.empty"),
                     (listLeft + listRight) / 2, (listTop + listBottom) / 2 - 4, 0xA0A0A0);
         } else {
             context.enableScissor(listLeft, listTop, listRight, listBottom);
@@ -227,41 +229,41 @@ public class OverwritePreciseConfirmScreen extends Screen {
             drawScrollbar(context, listRight, listTop, listBottom);
         }
 
-        context.drawText(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.overwrite_precise.hint"),
+        context.text(this.font,
+                Component.translatable("itemalchemy-expansion.overwrite_precise.hint"),
                 listLeft, panelY + panelH - 16, 0x707070, false);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
-    private void drawRow(DrawContext context, OverwriteEntry e, int listLeft, int listRight, int rowY, boolean hovered) {
+    private void drawRow(GuiGraphicsExtractor context, OverwriteEntry e, int listLeft, int listRight, int rowY, boolean hovered) {
         int textY = rowY + (ROW_H - 8) / 2;
         if (hovered) {
             context.fill(listLeft + 1, rowY, listRight - 1, rowY + ROW_H, 0x30FFFFFF);
         }
         drawCheckbox(context, listLeft + 2, rowY + (ROW_H - CHECKBOX) / 2, e.overwrite);
-        context.drawItem(e.stack, listLeft + 20, rowY + (ROW_H - 16) / 2);
+        context.item(e.stack, listLeft + 20, rowY + (ROW_H - 16) / 2);
         String name = e.displayName();
         if (name.length() > 16) name = name.substring(0, 15) + "...";
-        context.drawText(this.textRenderer, name, listLeft + 42, textY, 0xFFFFFF, false);
+        context.text(this.font, name, listLeft + 42, textY, 0xFFFFFF, false);
 
         // 变体标签
-        int nameW = this.textRenderer.getWidth(name);
+        int nameW = this.font.width(name);
         int tagX = listLeft + 42 + nameW + 6;
-        Text preciseTag = Text.translatable("itemalchemy-expansion.reprice.layer_precise");
-        context.drawText(this.textRenderer, preciseTag, tagX, textY, 0x55FFFF, false);
+        Component preciseTag = Component.translatable("itemalchemy-expansion.reprice.layer_precise");
+        context.text(this.font, preciseTag, tagX, textY, 0x55FFFF, false);
 
         // NBT 指纹摘要
-        int tagW = this.textRenderer.getWidth(preciseTag);
+        int tagW = this.font.width(preciseTag);
         String nbtSummary = extractNbtSummary(e.vkStr);
         if (nbtSummary != null && !nbtSummary.isEmpty()) {
-            context.drawText(this.textRenderer, nbtSummary, tagX + tagW + 4, textY, 0x888888, false);
+            context.text(this.font, nbtSummary, tagX + tagW + 4, textY, 0x888888, false);
         }
 
         drawEmc(context, e, listRight, textY);
     }
 
-    private void drawCheckbox(DrawContext context, int x, int y, boolean checked) {
+    private void drawCheckbox(GuiGraphicsExtractor context, int x, int y, boolean checked) {
         int fill = checked ? 0xFF208020 : 0xFF1A1A1A;
         int border = checked ? 0xFF30C030 : 0xFF707070;
         context.fill(x, y, x + CHECKBOX, y + CHECKBOX, fill);
@@ -271,22 +273,22 @@ public class OverwritePreciseConfirmScreen extends Screen {
         }
     }
 
-    private void drawEmc(DrawContext context, OverwriteEntry e, int rightX, int y) {
-        Text oldT = Text.translatable("itemalchemy-expansion.reprice.old_emc", String.valueOf(e.oldEmc));
-        Text newT = Text.translatable("itemalchemy-expansion.overwrite_precise.new_general",
+    private void drawEmc(GuiGraphicsExtractor context, OverwriteEntry e, int rightX, int y) {
+        Component oldT = Component.translatable("itemalchemy-expansion.reprice.old_emc", String.valueOf(e.oldEmc));
+        Component newT = Component.translatable("itemalchemy-expansion.overwrite_precise.new_general",
                 String.valueOf(newGeneralEmc));
-        int oldW = this.textRenderer.getWidth(oldT);
-        int sepW = this.textRenderer.getWidth("  ");
-        int newW = this.textRenderer.getWidth(newT);
+        int oldW = this.font.width(oldT);
+        int sepW = this.font.width("  ");
+        int newW = this.font.width(newT);
         int groupW = oldW + sepW + newW;
         int startX = rightX - groupW - 4;
 
         int oldColor = e.overwrite ? 0xFFFFE040 : 0xFFA0A0A0;
-        context.drawText(this.textRenderer, oldT, startX, y, oldColor, false);
-        context.drawText(this.textRenderer, newT, startX + oldW + sepW, y, 0xFF40E060, false);
+        context.text(this.font, oldT, startX, y, oldColor, false);
+        context.text(this.font, newT, startX + oldW + sepW, y, 0xFF40E060, false);
     }
 
-    private void drawScrollbar(DrawContext context, int listRight, int listTop, int listBottom) {
+    private void drawScrollbar(GuiGraphicsExtractor context, int listRight, int listTop, int listBottom) {
         int listHeight = listBottom - listTop;
         int totalHeight = entries.size() * ROW_H;
         int maxScroll = Math.max(0, totalHeight - listHeight);
@@ -312,8 +314,8 @@ public class OverwritePreciseConfirmScreen extends Screen {
             }
             String id = extractItemId(vkStr);
             Identifier identifier = Identifier.tryParse(id);
-            if (identifier != null && Registries.ITEM.containsId(identifier)) {
-                return new ItemStack(Registries.ITEM.get(identifier));
+            if (identifier != null && BuiltInRegistries.ITEM.containsKey(identifier)) {
+                return new ItemStack(BuiltInRegistries.ITEM.getValue(identifier));
             }
         } catch (Throwable ignore) {}
         return ItemStack.EMPTY;

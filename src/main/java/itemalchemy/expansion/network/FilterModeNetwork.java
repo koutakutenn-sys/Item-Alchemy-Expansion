@@ -3,8 +3,8 @@ package itemalchemy.expansion.network;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.search.IAlchemyTableScreenHandlerExt;
 import itemalchemy.expansion.search.SearchFilterMode;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.util.Identifier;
+import itemalchemy.expansion.compat.port.ServerPlayNetworking;
+import net.minecraft.resources.Identifier;
 import net.pitan76.itemalchemy.gui.screen.AlchemyTableScreenHandler;
 
 /**
@@ -24,7 +24,7 @@ import net.pitan76.itemalchemy.gui.screen.AlchemyTableScreenHandler;
 public final class FilterModeNetwork {
 
     /** C2S 包 id：{@code itemalchemy-expansion:filter_mode} */
-    public static final Identifier FILTER_MODE_ID = new Identifier(ItemAlchemyExpansion.MOD_ID, "filter_mode");
+    public static final Identifier FILTER_MODE_ID = Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "filter_mode");
 
     private FilterModeNetwork() {}
 
@@ -40,8 +40,8 @@ public final class FilterModeNetwork {
             }
 
             server.execute(() -> {
-                if (!(player.currentScreenHandler instanceof AlchemyTableScreenHandler)) return;
-                AlchemyTableScreenHandler screenHandler = (AlchemyTableScreenHandler) player.currentScreenHandler;
+                if (!(player.containerMenu instanceof AlchemyTableScreenHandler)) return;
+                AlchemyTableScreenHandler screenHandler = (AlchemyTableScreenHandler) player.containerMenu;
                 if (!(screenHandler instanceof IAlchemyTableScreenHandlerExt)) return;
                 IAlchemyTableScreenHandlerExt ext = (IAlchemyTableScreenHandlerExt) screenHandler;
                 ext.iaexp$setFilterMode(newMode);

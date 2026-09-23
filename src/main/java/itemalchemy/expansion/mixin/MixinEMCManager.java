@@ -10,7 +10,7 @@ import itemalchemy.expansion.nbt.ShulkerBoxSupport;
 import itemalchemy.expansion.network.AutoEmcStore;
 import itemalchemy.expansion.network.PreciseEmcStore;
 import itemalchemy.expansion.util.EmcQueryUtil;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.mcpitanlib.api.util.ItemStackUtil;
 import org.spongepowered.asm.mixin.Mixin;
@@ -52,7 +52,7 @@ public abstract class MixinEMCManager {
     /**
      * 原版 {@code ItemStack} 重载：潜影盒 / 精确 / 自动定价分支。
      */
-    @Inject(method = "get(Lnet/minecraft/item/ItemStack;)J", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "get(Lnet/minecraft/world/item/ItemStack;)J", at = @At("HEAD"), cancellable = true)
     private static void iaexp$getEmc(ItemStack stack, CallbackInfoReturnable<Long> cir) {
         if (stack == null || stack.isEmpty()) return;
 
@@ -111,9 +111,9 @@ public abstract class MixinEMCManager {
                 Long autoGeneral = AutoEmcStore.getGeneral(itemId);
                 if (autoGeneral != null) {
                     // L3 miss 回退 L4：若物品有 NBT，说明变体键未命中精确层，可能存在未忽略的运行时 NBT key
-                    if (stack.hasNbt()) {
+                    if (itemalchemy.expansion.compat.port.StackData.hasNbt(stack)) {
                         ItemAlchemyExpansion.debug("[IAExp] emc L3 miss -> L4 fallback: itemId={}, variant={}, nbtKeys={}, general={} x {}",
-                                itemId, vkStr, stack.getNbt().getKeys(), autoGeneral, count);
+                                itemId, vkStr, itemalchemy.expansion.compat.port.StackData.getNbt(stack).keySet(), autoGeneral, count);
                     } else {
                         ItemAlchemyExpansion.debug("[IAExp] emc hit L4 (general auto): {} -> {} x {}",
                                 itemId, autoGeneral, count);
@@ -130,7 +130,7 @@ public abstract class MixinEMCManager {
             long l2Val = l2Has ? EMCManager.get(stack.getItem()) : 0L;
             ItemAlchemyExpansion.debug(
                     "[IAExp] emc fallthrough L2: itemId='{}', contains={}, rawGet={}, count={}, vkStr='{}', hasNbt={}, autoPricing={}",
-                    itemId, l2Has, l2Val, count, vkStr, stack.hasNbt(), cfg.autoPricingFromRecipes);
+                    itemId, l2Has, l2Val, count, vkStr, itemalchemy.expansion.compat.port.StackData.hasNbt(stack), cfg.autoPricingFromRecipes);
         }
     }
 }

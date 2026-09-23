@@ -3,11 +3,11 @@ package itemalchemy.expansion;
 import itemalchemy.expansion.config.IAExpConfigHolder;
 import itemalchemy.expansion.nbt.ItemVariantKey;
 import itemalchemy.expansion.nbt.NbtFingerprinter;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 
 /**
  * 全局服务单例：提供配置、NBT 指纹器，以及 ItemStack ↔ 变体键互转。
@@ -49,8 +49,8 @@ public final class IAExpServices {
         // 用 debugEnabled() 守卫，避免 debug 关闭时仍拼接 toStorageString()
         if (ItemAlchemyExpansion.debugEnabled()) {
             ItemAlchemyExpansion.debug("[IAExp] variantKeyOf: item={}, hasNbt={}, nbt={}, variant={}",
-                    stack.getItem(), stack.hasNbt(),
-                    stack.hasNbt() ? stack.getNbt() : "{}",
+                    stack.getItem(), itemalchemy.expansion.compat.port.StackData.hasNbt(stack),
+                    itemalchemy.expansion.compat.port.StackData.hasNbt(stack) ? itemalchemy.expansion.compat.port.StackData.getNbt(stack) : "{}",
                     vk.toStorageString());
         }
         return vk;
@@ -61,24 +61,24 @@ public final class IAExpServices {
      */
     public static ItemStack rebuildStack(ItemVariantKey key) {
         Identifier id = Identifier.tryParse(key.itemId);
-        if (id == null || !Registries.ITEM.containsId(id)) {
+        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
             ItemAlchemyExpansion.LOGGER.warn("[IAExp] rebuildStack: item id not found: {}", key.itemId);
             return ItemStack.EMPTY;
         }
-        Item item = Registries.ITEM.get(id);
+        Item item = BuiltInRegistries.ITEM.getValue(id);
         ItemStack stack = new ItemStack(item, 1);
         if (key.nbtFingerprint != null && !key.nbtFingerprint.isEmpty()) {
-            NbtCompound nbt = NbtFingerprinter.parseFingerprint(key.nbtFingerprint);
+            CompoundTag nbt = NbtFingerprinter.parseFingerprint(key.nbtFingerprint);
             if (nbt != null) {
-                stack.setNbt(nbt);
+                itemalchemy.expansion.compat.port.StackData.setNbt(stack, nbt);
             } else {
                 ItemAlchemyExpansion.LOGGER.warn("[IAExp] rebuildStack: failed to parse fingerprint: {}", key.nbtFingerprint);
             }
         }
         if (ItemAlchemyExpansion.debugEnabled()) {
             ItemAlchemyExpansion.debug("[IAExp] rebuildStack: key={} -> item={}, hasNbt={}, nbt={}",
-                    key.toStorageString(), stack.getItem(), stack.hasNbt(),
-                    stack.hasNbt() ? stack.getNbt() : "{}");
+                    key.toStorageString(), stack.getItem(), itemalchemy.expansion.compat.port.StackData.hasNbt(stack),
+                    itemalchemy.expansion.compat.port.StackData.hasNbt(stack) ? itemalchemy.expansion.compat.port.StackData.getNbt(stack) : "{}");
         }
         return stack;
     }

@@ -1,5 +1,5 @@
 plugins {
-	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 }
 
@@ -41,6 +41,14 @@ loom {
 }
 
 fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = 'itemalchemy-expansion-port-tests'
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = false
+		clearRunDirectory = false
+	}
 	configureDataGeneration {
 		client = true
 	}
@@ -49,21 +57,19 @@ fabricApi {
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
 	// Item Alchemy (the mod this is an addon of) + its dependency mcpitanlib
-	modImplementation "net.pitan76:itemalchemy:${project.itemalchemy_version}"
-	modImplementation "net.pitan76:mcpitanlib-fabric+1.20.1:${project.mcpitanlib_version}"
+	compileOnly files('libs/itemalchemy-1.3.9-native-dev.jar')
+	runtimeOnly files('libs/itemalchemy-1.3.9.jar')
+	implementation files('libs/mcpitanlib-4.0.7-fix.1-26.2-fabric.jar')
 
 	// Optional config UI: Cloth Config API + Mod Menu (soft deps at runtime)
-	modApi("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
-		exclude(group: "net.fabricmc.fabric-api")
-	}
-	modImplementation "com.terraformersmc:modmenu:${project.modmenu_version}"
+	implementation files('libs/cloth-config-26.2.155.jar')
+	implementation files('libs/modmenu-20.0.2.jar')
 }
 
 processResources {
@@ -75,7 +81,38 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 17
+	it.options.release = 25
+	it.options.encoding = 'UTF-8'
+	it.options.compilerArgs += ['-Xmaxerrs', '1000']
+}
+
+// The upstream dependency's bridge runs after Mixin, so its mixins must match
+// intermediary descriptors at injection time. No game/dependency JAR is modified.
+def bridgeExec = services.get(org.gradle.process.ExecOperations)
+tasks.register('prepareItemAlchemyCompileView') {
+	inputs.files('libs/itemalchemy-1.3.9.jar', 'build-tools/runtime-class-map.tsv', 'build-tools/NativeDevJar.java')
+	outputs.file('libs/itemalchemy-1.3.9-native-dev.jar')
+	doLast {
+		bridgeExec.exec {
+			commandLine javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }.get().executablePath.asFile,
+				'-cp', configurations.compileClasspath.asPath, file('build-tools/NativeDevJar.java'),
+				file('build-tools/runtime-class-map.tsv'), file('libs/itemalchemy-1.3.9.jar'), file('libs/itemalchemy-1.3.9-native-dev.jar')
+		}
+	}
+}
+['compileJava', 'compileClientJava'].each { name ->
+	tasks.named(name, JavaCompile).configure {
+		dependsOn tasks.named('prepareItemAlchemyCompileView')
+		inputs.files('build-tools/LegacyMixinBridge.java', 'build-tools/runtime-class-map.tsv')
+		doLast {
+			bridgeExec.exec {
+				commandLine javaCompiler.get().metadata.installationPath.file('bin/java').asFile,
+					'-cp', classpath.asPath, file('build-tools/LegacyMixinBridge.java'),
+					file('build-tools/runtime-class-map.tsv'),
+					destinationDirectory.dir('itemalchemy/expansion/mixin').get().asFile
+			}
+		}
+	}
 }
 
 java {
@@ -84,8 +121,30 @@ java {
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_17
-	targetCompatibility = JavaVersion.VERSION_17
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+tasks.register('portDataSmoke', JavaExec) {
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'itemalchemy.expansion.PortDataSmokeTest'
+	workingDir = layout.buildDirectory.dir('port-data-smoke').get().asFile
+	doFirst { workingDir.mkdirs() }
+}
+// These regression assertions use a standalone Minecraft bootstrap, not JUnit.
+tasks.named('test', Test) { failOnNoDiscoveredTests = false }
+tasks.named('check') { dependsOn tasks.named('portDataSmoke') }
+
+// Exercise the packaged mod, not development class directories, when requested.
+if (providers.gradleProperty('portTestBuiltJar').isPresent()) {
+	tasks.named('runClientGameTest', JavaExec).configure {
+		dependsOn tasks.named('jar'), tasks.named('gametestClasses')
+		def developmentOutputs = (sourceSets.main.output.files + sourceSets.client.output.files)
+		def originalFiles = classpath.files
+		classpath = files(originalFiles.findAll { !developmentOutputs.contains(it) }) + files(tasks.jar.archiveFile)
+		systemProperty 'iaexp.test.packaged', 'true'
+	}
 }
 
 jar {

@@ -1,9 +1,9 @@
 package itemalchemy.expansion.search;
 
 import itemalchemy.expansion.nbt.ShulkerBoxSupport;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Identifier;
-import net.minecraft.registry.Registries;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.resources.Identifier;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
 import net.pitan76.mcpitanlib.midohra.item.ItemWrapper;
 import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;
@@ -124,7 +124,7 @@ public final class SearchMatcher {
     private static String translatedName(ItemStack stack, SearchContext ctx) {
         if (ctx.translations == null) return "";
         try {
-            String key = stack.getTranslationKey();
+            String key = stack.getItem().getDescriptionId();
             if (ctx.translations.has(key)) return ctx.translations.getString(key);
         } catch (Throwable ignored) {}
         return "";
@@ -159,7 +159,7 @@ public final class SearchMatcher {
      */
     public static boolean matchesDirectItem(ItemStack stack, SearchContext ctx) {
         if (ShulkerBoxSupport.isShulkerBox(stack)) return false;
-        Identifier rawId = Registries.ITEM.getId(stack.getItem());
+        Identifier rawId = BuiltInRegistries.ITEM.getKey(stack.getItem());
         String itemId = rawId == null ? "" : rawId.toString();
         if (!nsOk(itemId, ctx)) return false;
         if (ctx.searchLower.isEmpty()) return true;
@@ -167,7 +167,7 @@ public final class SearchMatcher {
         String translated = translatedName(stack, ctx);
         String displayName;
         try {
-            displayName = stack.getName().getString();
+            displayName = stack.getHoverName().getString();
         } catch (Throwable t) {
             displayName = "";
         }
@@ -180,12 +180,12 @@ public final class SearchMatcher {
      */
     public static boolean matchesShulkerBoxItself(ItemStack shulkerBox, SearchContext ctx) {
         if (ctx.searchLower.isEmpty()) return false; // 仅 ns 过滤时不算自身名匹配
-        Identifier rawId = Registries.ITEM.getId(shulkerBox.getItem());
+        Identifier rawId = BuiltInRegistries.ITEM.getKey(shulkerBox.getItem());
         String path = rawId == null ? "" : rawId.getPath();
         String translated = translatedName(shulkerBox, ctx);
         String displayName;
         try {
-            displayName = shulkerBox.getName().getString();
+            displayName = shulkerBox.getHoverName().getString();
         } catch (Throwable t) {
             displayName = "";
         }
@@ -217,7 +217,7 @@ public final class SearchMatcher {
      * <p>public 供 {@code AlchemyTableScreenShulkerPreview} 在 Shift 预览时按格子判断是否画红框。</p>
      */
     public static boolean matchesContentItem(ItemStack content, SearchContext ctx) {
-        Identifier rawId = Registries.ITEM.getId(content.getItem());
+        Identifier rawId = BuiltInRegistries.ITEM.getKey(content.getItem());
         String itemId = rawId == null ? "" : rawId.toString();
         if (!nsOk(itemId, ctx)) return false;
         if (ctx.searchLower.isEmpty()) return true; // 仅 ns 过滤
@@ -225,7 +225,7 @@ public final class SearchMatcher {
         String translated = translatedName(content, ctx);
         String displayName;
         try {
-            displayName = content.getName().getString();
+            displayName = content.getHoverName().getString();
         } catch (Throwable t) {
             displayName = "";
         }

@@ -5,7 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.world.level.storage.LevelResource;
 import net.pitan76.itemalchemy.EMCManager;
 
 import java.io.IOException;
@@ -39,8 +39,8 @@ public final class PerSaveEmcStore {
 
     /** 返回本存档 overrides 文件路径：{@code <world>/itemalchemy_expansion_overrides.json} */
     public static Path getFile(MinecraftServer server) {
-        // WorldSavePath.ROOT = 世界存档根目录（如 ./<saves>/<world>/）
-        Path worldRoot = server.getSavePath(WorldSavePath.ROOT);
+        // LevelResource.ROOT = 世界存档根目录（如 ./<saves>/<world>/）
+        Path worldRoot = server.getWorldPath(LevelResource.ROOT);
         return worldRoot.resolve(FILE_NAME);
     }
 

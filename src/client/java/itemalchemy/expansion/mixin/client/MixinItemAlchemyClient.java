@@ -1,7 +1,7 @@
 package itemalchemy.expansion.mixin.client;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
 import net.pitan76.itemalchemy.ItemAlchemyClient;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.mcpitanlib.api.util.ItemStackUtil;
@@ -31,7 +31,7 @@ import java.util.List;
 public abstract class MixinItemAlchemyClient {
 
     @Inject(method = "getEmcText", at = @At("HEAD"), cancellable = true, remap = false)
-    private static void iaexp$fixEmcTooltip(ItemStack stack, CallbackInfoReturnable<List<Text>> cir) {
+    private static void iaexp$fixEmcTooltip(ItemStack stack, CallbackInfoReturnable<List<Component>> cir) {
         if (stack == null || stack.isEmpty()) return;
 
         // 用 EMCManager.get(ItemStack) 查询——已被 MixinEMCManager 拦截，
@@ -47,7 +47,7 @@ public abstract class MixinItemAlchemyClient {
         int count = ItemStackUtil.getCount(stack);
         long unitEmc = count > 1 ? totalEmc / count : totalEmc;
 
-        List<Text> list = new ArrayList<>();
+        List<Component> list = new ArrayList<>();
         list.add(TextUtil.literal("\u00a7eEMC: \u00a7r" + String.format("%,d", unitEmc)));
         if (count > 1) {
             list.add(TextUtil.literal("\u00a7eStack EMC: \u00a7r" + String.format("%,d", totalEmc)));

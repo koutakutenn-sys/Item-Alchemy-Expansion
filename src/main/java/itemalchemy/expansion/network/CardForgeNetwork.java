@@ -4,13 +4,13 @@ import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.block.CardForgeBlockEntity;
 import itemalchemy.expansion.gui.CardForgeScreenHandler;
 import itemalchemy.expansion.item.EmcCardItem;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.item.ItemStack;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import itemalchemy.expansion.compat.port.PacketByteBufs;
+import itemalchemy.expansion.compat.port.ServerPlayNetworking;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 /**
  * 制卡台 C2S 网络：私有/公有、关联、合并操作。
@@ -21,7 +21,7 @@ import net.minecraft.util.Identifier;
 public final class CardForgeNetwork {
 
     public static final Identifier ACTION_ID =
-            new Identifier(ItemAlchemyExpansion.MOD_ID, "card_forge_action");
+            Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "card_forge_action");
 
     /** 动作：设为私有（作用于槽 0） */
     public static final byte ACTION_SET_PRIVATE = 0;
@@ -44,7 +44,7 @@ public final class CardForgeNetwork {
 
     /** S2C 通道：下发在线玩家名列表（绑定页模糊匹配用） */
     public static final Identifier PLAYERS_ID =
-            new Identifier(ItemAlchemyExpansion.MOD_ID, "card_forge_players");
+            Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "card_forge_players");
 
     private CardForgeNetwork() {}
 
@@ -52,7 +52,7 @@ public final class CardForgeNetwork {
     public static void registerServer() {
         ServerPlayNetworking.registerGlobalReceiver(ACTION_ID, (server, player, handler, buf, responseSender) -> {
             final byte action = buf.readByte();
-            final String name = (action == ACTION_BIND) ? buf.readString() : null;
+            final String name = (action == ACTION_BIND) ? buf.readUtf() : null;
             final long limSingle = (action == ACTION_SET_LIMITS) ? buf.readLong() : 0L;
             final long limTotal = (action == ACTION_SET_LIMITS) ? buf.readLong() : 0L;
             server.execute(() -> {
@@ -65,8 +65,8 @@ public final class CardForgeNetwork {
         });
     }
 
-    private static void handleAction(ServerPlayerEntity player, byte action, String name, long limSingle, long limTotal) {
-        if (!(player.currentScreenHandler instanceof CardForgeScreenHandler sh)) return;
+    private static void handleAction(ServerPlayer player, byte action, String name, long limSingle, long limTotal) {
+        if (!(player.containerMenu instanceof CardForgeScreenHandler sh)) return;
         CardForgeBlockEntity forge = sh.forge;
         if (forge == null) return;
 
@@ -82,26 +82,26 @@ public final class CardForgeNetwork {
             case ACTION_REQUEST_PLAYERS -> sendPlayers(player);
             default -> { return; }
         }
-        forge.markDirty();
-        sh.sendContentUpdates();
+        forge.setChanged();
+        sh.broadcastChanges();
     }
 
     /** 下发在线玩家名列表（S2C，绑定页模糊匹配数据源） */
-    private static void sendPlayers(ServerPlayerEntity player) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        var names = player.getServer().getPlayerManager().getPlayerList().stream()
-                .map(p -> p.getGameProfile().getName())
+    private static void sendPlayers(ServerPlayer player) {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        var names = player.level().getServer().getPlayerList().getPlayers().stream()
+                .map(p -> p.getGameProfile().name())
                 .sorted(String::compareToIgnoreCase)
                 .toList();
         buf.writeVarInt(names.size());
-        for (String n : names) buf.writeString(n);
+        for (String n : names) buf.writeUtf(n);
         ServerPlayNetworking.send(player, PLAYERS_ID, buf);
     }
 
     // ==================== 私有 / 公有 ====================
 
-    private static void setPrivate(CardForgeBlockEntity forge, ServerPlayerEntity player) {
-        ItemStack card = forge.getStack(0);
+    private static void setPrivate(CardForgeBlockEntity forge, ServerPlayer player) {
+        ItemStack card = forge.getItem(0);
         if (card.isEmpty() || !(card.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.no_card");
             return;
@@ -111,12 +111,12 @@ public final class CardForgeNetwork {
             return;
         }
         EmcCardItem.setVisibility(card, true);
-        EmcCardItem.setOwnerUuid(card, player.getUuidAsString());
-        msg(player, "card_forge.now_private", Text.literal(player.getName().getString()));
+        EmcCardItem.setOwnerUuid(card, player.getStringUUID());
+        msg(player, "card_forge.now_private", Component.literal(player.getName().getString()));
     }
 
-    private static void setPublic(CardForgeBlockEntity forge, ServerPlayerEntity player) {
-        ItemStack card = forge.getStack(0);
+    private static void setPublic(CardForgeBlockEntity forge, ServerPlayer player) {
+        ItemStack card = forge.getItem(0);
         if (card.isEmpty() || !(card.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.no_card");
             return;
@@ -131,15 +131,15 @@ public final class CardForgeNetwork {
     }
 
     /** 私有卡仅主人可改；公有卡任何人可改 */
-    private static boolean canModify(ItemStack card, ServerPlayerEntity player) {
+    private static boolean canModify(ItemStack card, ServerPlayer player) {
         return EmcCardItem.canUse(card, player);
     }
 
     // ==================== 关联 ====================
 
-    private static void link(CardForgeBlockEntity forge, ServerPlayerEntity player) {
-        ItemStack a = forge.getStack(0);
-        ItemStack b = forge.getStack(1);
+    private static void link(CardForgeBlockEntity forge, ServerPlayer player) {
+        ItemStack a = forge.getItem(0);
+        ItemStack b = forge.getItem(1);
         if (a.isEmpty() || b.isEmpty() || !(a.getItem() instanceof EmcCardItem) || !(b.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.link.need_two");
             return;
@@ -166,7 +166,7 @@ public final class CardForgeNetwork {
         // 生成新组，两卡余额并入共享账户，卡 NBT 存储清零
         String group = CardAccountStore.newGroupId();
         long total = EmcCardItem.getStoredEmc(a) + EmcCardItem.getStoredEmc(b);
-        CardAccountStore.add(player.getServer(), group, total);
+        CardAccountStore.add(player.level().getServer(), group, total);
         EmcCardItem.setLinkGroup(a, group);
         EmcCardItem.setLinkGroup(b, group);
         EmcCardItem.setStoredEmc(a, 0);
@@ -175,8 +175,8 @@ public final class CardForgeNetwork {
     }
 
     /** 解除关联：共享余额全部回到槽 0 卡，关联组删除 */
-    private static void unlink(CardForgeBlockEntity forge, ServerPlayerEntity player) {
-        ItemStack card = forge.getStack(0);
+    private static void unlink(CardForgeBlockEntity forge, ServerPlayer player) {
+        ItemStack card = forge.getItem(0);
         if (card.isEmpty() || !(card.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.no_card");
             return;
@@ -194,20 +194,20 @@ public final class CardForgeNetwork {
         long balance = CardAccountStore.get(group);
         EmcCardItem.setLinkGroup(card, null);
         EmcCardItem.setStoredEmc(card, balance);
-        ItemStack other = forge.getStack(1);
+        ItemStack other = forge.getItem(1);
         if (!other.isEmpty() && group.equals(EmcCardItem.getLinkGroup(other))) {
             EmcCardItem.setLinkGroup(other, null);
         }
-        CardAccountStore.remove(player.getServer(), group);
+        CardAccountStore.remove(player.level().getServer(), group);
         msg(player, "card_forge.unlink.success",
-                Text.literal(EmcCardItem.formatNumber(balance)));
+                Component.literal(EmcCardItem.formatNumber(balance)));
     }
 
     // ==================== 合并 ====================
 
-    private static void merge(CardForgeBlockEntity forge, ServerPlayerEntity player) {
-        ItemStack target = forge.getStack(0);
-        ItemStack source = forge.getStack(1);
+    private static void merge(CardForgeBlockEntity forge, ServerPlayer player) {
+        ItemStack target = forge.getItem(0);
+        ItemStack source = forge.getItem(1);
         if (target.isEmpty() || source.isEmpty() || !(target.getItem() instanceof EmcCardItem) || !(source.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.merge.need_two");
             return;
@@ -234,18 +234,18 @@ public final class CardForgeNetwork {
         long transfer = EmcCardItem.getBaseEmc() + EmcCardItem.getStoredEmc(source);
         EmcCardItem.setStoredEmc(target, EmcCardItem.getStoredEmc(target) + transfer);
         EmcCardItem.addTransaction(target, EmcCardItem.TX_DEPOSIT, transfer);
-        forge.setStack(1, ItemStack.EMPTY); // 消耗 source 卡
+        forge.setItem(1, ItemStack.EMPTY); // 消耗 source 卡
         msg(player, "card_forge.merge.success");
     }
 
-    private static void msg(ServerPlayerEntity player, String key, Text... args) {
-        player.sendMessage(Text.translatable("itemalchemy-expansion." + key, (Object[]) args), true);
+    private static void msg(ServerPlayer player, String key, Component... args) {
+        player.sendSystemMessage(Component.translatable("itemalchemy-expansion." + key, (Object[]) args), true);
     }
 
     // ==================== 绑定玩家 ====================
 
-    private static void bind(CardForgeBlockEntity forge, ServerPlayerEntity player, String name) {
-        ItemStack card = forge.getStack(0);
+    private static void bind(CardForgeBlockEntity forge, ServerPlayer player, String name) {
+        ItemStack card = forge.getItem(0);
         if (card.isEmpty() || !(card.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.no_card");
             return;
@@ -264,36 +264,36 @@ public final class CardForgeNetwork {
             return;
         }
         // 解析玩家名 -> UUID（支持离线，走服务器 usercache）
-        java.util.Optional<com.mojang.authlib.GameProfile> profile =
-                player.getServer().getUserCache().findByName(name.trim());
+        java.util.Optional<net.minecraft.server.players.NameAndId> profile =
+                player.level().getServer().services().nameToIdCache().get(name.trim());
         if (profile.isEmpty()) {
-            msg(player, "card_forge.bind.not_found", Text.literal(name.trim()));
+            msg(player, "card_forge.bind.not_found", Component.literal(name.trim()));
             return;
         }
-        String uuid = profile.get().getId().toString();
+        String uuid = profile.get().id().toString();
         // 确保目标玩家有转换桌队伍：没有则创建默认队伍（0 EMC）。
         // 否则绑卡放入转换器/输出器会因无处入账而静默失败。
-        if (!PlayerEmcUtil.ensureTeam(player.getServer(), java.util.UUID.fromString(uuid), profile.get().getName())) {
-            msg(player, "card_forge.bind.no_team", Text.literal(profile.get().getName()));
+        if (!PlayerEmcUtil.ensureTeam(player.level().getServer(), java.util.UUID.fromString(uuid), profile.get().name())) {
+            msg(player, "card_forge.bind.no_team", Component.literal(profile.get().name()));
             return;
         }
         // 卡内原余额转入绑定玩家 EMC，避免绑定后"消失"（ensureTeam 已保证可入账）
         long stored = EmcCardItem.getStoredEmc(card);
         if (stored > 0) {
-            PlayerEmcUtil.add(player.getServer(), java.util.UUID.fromString(uuid), stored);
+            PlayerEmcUtil.add(player.level().getServer(), java.util.UUID.fromString(uuid), stored);
             EmcCardItem.setStoredEmc(card, 0);
         }
         EmcCardItem.setBindUuid(card, uuid);
         // 记录玩家名供界面离线显示（不参与判定）
-        EmcCardItem.setBindName(card, profile.get().getName());
+        EmcCardItem.setBindName(card, profile.get().name());
         // 绑定后默认自动设为私有，绑定给该玩家
         EmcCardItem.setVisibility(card, true);
         EmcCardItem.setOwnerUuid(card, uuid);
-        msg(player, "card_forge.bind.success", Text.literal(profile.get().getName()));
+        msg(player, "card_forge.bind.success", Component.literal(profile.get().name()));
     }
 
-    private static void unbind(CardForgeBlockEntity forge, ServerPlayerEntity player) {
-        ItemStack card = forge.getStack(0);
+    private static void unbind(CardForgeBlockEntity forge, ServerPlayer player) {
+        ItemStack card = forge.getItem(0);
         if (card.isEmpty() || !(card.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.no_card");
             return;
@@ -312,8 +312,8 @@ public final class CardForgeNetwork {
         msg(player, "card_forge.bind.unbound");
     }
 
-    private static void setLimits(CardForgeBlockEntity forge, ServerPlayerEntity player, long single, long total) {
-        ItemStack card = forge.getStack(0);
+    private static void setLimits(CardForgeBlockEntity forge, ServerPlayer player, long single, long total) {
+        ItemStack card = forge.getItem(0);
         if (card.isEmpty() || !(card.getItem() instanceof EmcCardItem)) {
             msg(player, "card_forge.no_card");
             return;
@@ -329,7 +329,7 @@ public final class CardForgeNetwork {
         EmcCardItem.setBindSingleLimit(card, single);
         EmcCardItem.setBindTotalLimit(card, total);
         msg(player, "card_forge.bind.limits_set",
-                Text.literal(EmcCardItem.formatNumber(single)),
-                Text.literal(EmcCardItem.formatNumber(total)));
+                Component.literal(EmcCardItem.formatNumber(single)),
+                Component.literal(EmcCardItem.formatNumber(total)));
     }
 }

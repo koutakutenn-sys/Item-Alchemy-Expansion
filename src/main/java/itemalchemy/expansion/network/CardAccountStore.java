@@ -5,7 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -50,7 +50,7 @@ public final class CardAccountStore {
 
     /** 返回共享账户存档文件路径 */
     public static Path getFile(MinecraftServer server) {
-        return server.getSavePath(WorldSavePath.ROOT).resolve(FILE_NAME);
+        return server.getWorldPath(LevelResource.ROOT).resolve(FILE_NAME);
     }
 
     /** 查询关联组的共享余额；组不存在返回 0 */
@@ -142,7 +142,7 @@ public final class CardAccountStore {
     /** 每 tick 由 END_SERVER_TICK 调用：脏数据按间隔刷盘，避免红石自动化下每 tick 磁盘 I/O */
     public static void onServerTick(MinecraftServer server) {
         if (!dirty) return;
-        long now = server.getTicks();
+        long now = server.getTickCount();
         if (lastFlushTick != Long.MIN_VALUE && now - lastFlushTick < FLUSH_INTERVAL_TICKS) return;
         lastFlushTick = now;
         save(server);

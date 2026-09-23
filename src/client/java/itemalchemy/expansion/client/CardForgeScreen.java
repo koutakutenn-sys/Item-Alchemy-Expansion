@@ -4,16 +4,16 @@ import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.gui.CardForgeScreenHandler;
 import itemalchemy.expansion.item.EmcCardItem;
 import itemalchemy.expansion.network.CardForgeNetwork;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.pitan76.mcpitanlib.api.client.gui.screen.SimpleInventoryScreen;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawBackgroundArgs;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawForegroundArgs;
@@ -65,11 +65,11 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
     private ModernButton btnUnlink;
     private ModernButton btnBind;
     private ModernButton btnApplyLimits;
-    private TextFieldWidget nameField;
-    private TextFieldWidget singleField;
-    private TextFieldWidget totalField;
+    private EditBox nameField;
+    private EditBox singleField;
+    private EditBox totalField;
 
-    public CardForgeScreen(CardForgeScreenHandler handler, PlayerInventory inventory, Text title) {
+    public CardForgeScreen(CardForgeScreenHandler handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
         setBackgroundWidth(BG_W);
         setBackgroundHeight(BG_H);
@@ -77,7 +77,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
 
     @Override
     public Identifier getTexture() {
-        return new Identifier(ItemAlchemyExpansion.MOD_ID, "textures/gui/card_forge");
+        return Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "textures/gui/card_forge");
     }
 
     @Override
@@ -88,11 +88,11 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         // 三个悬浮标签
         int tabW = 52, tabH = 24;
         tabAttrBtn = new ModernButton(cx - 84, top + 6, tabW, tabH,
-                Text.translatable("itemalchemy-expansion.card_forge.tab.attr"), b -> switchTab(TAB_ATTR));
+                Component.translatable("itemalchemy-expansion.card_forge.tab.attr"), b -> switchTab(TAB_ATTR));
         tabCombineBtn = new ModernButton(cx - 26, top + 6, tabW, tabH,
-                Text.translatable("itemalchemy-expansion.card_forge.tab.combine"), b -> switchTab(TAB_COMBINE));
+                Component.translatable("itemalchemy-expansion.card_forge.tab.combine"), b -> switchTab(TAB_COMBINE));
         tabBindBtn = new ModernButton(cx + 32, top + 6, tabW, tabH,
-                Text.translatable("itemalchemy-expansion.card_forge.tab.bind"), b -> switchTab(TAB_BIND));
+                Component.translatable("itemalchemy-expansion.card_forge.tab.bind"), b -> switchTab(TAB_BIND));
         addDrawableChild_compatibility(tabAttrBtn);
         addDrawableChild_compatibility(tabCombineBtn);
         addDrawableChild_compatibility(tabBindBtn);
@@ -101,28 +101,28 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         int w = 70, h = 20;
         int rowY = top + 88;
         btnPrivate = new ModernButton(cx - w - 4, rowY, w, h,
-                Text.translatable("itemalchemy-expansion.card_forge.private"),
+                Component.translatable("itemalchemy-expansion.card_forge.private"),
                 b -> CardForgeClientNetwork.sendAction(CardForgeNetwork.ACTION_SET_PRIVATE));
-        btnPrivate.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.private.tooltip")));
+        btnPrivate.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.private.tooltip")));
         btnPublic = new ModernButton(cx + 4, rowY, w, h,
-                Text.translatable("itemalchemy-expansion.card_forge.public"),
+                Component.translatable("itemalchemy-expansion.card_forge.public"),
                 b -> CardForgeClientNetwork.sendAction(CardForgeNetwork.ACTION_SET_PUBLIC));
-        btnPublic.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.public.tooltip")));
+        btnPublic.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.public.tooltip")));
 
         // 组合页内容按钮（关联 / 合并 / 解除关联）
         int cw = 52;
         btnLink = new ModernButton(cx - 80, rowY, cw, h,
-                Text.translatable("itemalchemy-expansion.card_forge.link"),
+                Component.translatable("itemalchemy-expansion.card_forge.link"),
                 b -> CardForgeClientNetwork.sendAction(CardForgeNetwork.ACTION_LINK));
-        btnLink.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.link.tooltip")));
+        btnLink.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.link.tooltip")));
         btnMerge = new ModernButton(cx - 24, rowY, cw, h,
-                Text.translatable("itemalchemy-expansion.card_forge.merge"),
+                Component.translatable("itemalchemy-expansion.card_forge.merge"),
                 b -> CardForgeClientNetwork.sendAction(CardForgeNetwork.ACTION_MERGE));
-        btnMerge.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.merge.tooltip")));
+        btnMerge.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.merge.tooltip")));
         btnUnlink = new ModernButton(cx + 32, rowY, cw, h,
-                Text.translatable("itemalchemy-expansion.card_forge.unlink"),
+                Component.translatable("itemalchemy-expansion.card_forge.unlink"),
                 b -> CardForgeClientNetwork.sendAction(CardForgeNetwork.ACTION_UNLINK));
-        btnUnlink.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.unlink.tooltip")));
+        btnUnlink.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.unlink.tooltip")));
         addDrawableChild_compatibility(btnPrivate);
         addDrawableChild_compatibility(btnPublic);
         addDrawableChild_compatibility(btnLink);
@@ -131,28 +131,28 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
 
         // 绑定页内容：未绑定时显示 玩家名输入 + 绑定按钮 + 下拉候选；
         // 已绑定时显示 状态信息 + 解除绑定 + 限额输入 + 应用（renderOverride 按卡态切换）
-        nameField = new TextFieldWidget(this.textRenderer, cx - 58, top + 62, 116, 14,
-                Text.translatable("itemalchemy-expansion.card_forge.bind.name_field"));
+        nameField = new EditBox(this.font, cx - 58, top + 62, 116, 14,
+                Component.translatable("itemalchemy-expansion.card_forge.bind.name_field"));
         nameField.setMaxLength(16);
-        nameField.setPlaceholder(Text.translatable("itemalchemy-expansion.card_forge.bind.name_placeholder"));
-        nameField.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.bind.name.tooltip")));
-        singleField = new TextFieldWidget(this.textRenderer, cx - 58, top + 108, 40, 14,
-                Text.translatable("itemalchemy-expansion.card_forge.bind.single_field"));
+        nameField.setHint(Component.translatable("itemalchemy-expansion.card_forge.bind.name_placeholder"));
+        nameField.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.bind.name.tooltip")));
+        singleField = new EditBox(this.font, cx - 58, top + 108, 40, 14,
+                Component.translatable("itemalchemy-expansion.card_forge.bind.single_field"));
         singleField.setMaxLength(12);
-        singleField.setPlaceholder(Text.translatable("itemalchemy-expansion.card_forge.bind.single_placeholder"));
-        singleField.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.bind.single.tooltip")));
-        totalField = new TextFieldWidget(this.textRenderer, cx - 12, top + 108, 40, 14,
-                Text.translatable("itemalchemy-expansion.card_forge.bind.total_field"));
+        singleField.setHint(Component.translatable("itemalchemy-expansion.card_forge.bind.single_placeholder"));
+        singleField.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.bind.single.tooltip")));
+        totalField = new EditBox(this.font, cx - 12, top + 108, 40, 14,
+                Component.translatable("itemalchemy-expansion.card_forge.bind.total_field"));
         totalField.setMaxLength(12);
-        totalField.setPlaceholder(Text.translatable("itemalchemy-expansion.card_forge.bind.total_placeholder"));
-        totalField.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.bind.total.tooltip")));
+        totalField.setHint(Component.translatable("itemalchemy-expansion.card_forge.bind.total_placeholder"));
+        totalField.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.bind.total.tooltip")));
         btnBind = new ModernButton(cx - 58, top + 84, 116, 16,
-                Text.translatable("itemalchemy-expansion.card_forge.bind"),
+                Component.translatable("itemalchemy-expansion.card_forge.bind"),
                 b -> doBind());
         btnApplyLimits = new ModernButton(cx - 30, top + 127, 60, 16,
-                Text.translatable("itemalchemy-expansion.card_forge.bind.apply"),
+                Component.translatable("itemalchemy-expansion.card_forge.bind.apply"),
                 b -> doApplyLimits());
-        btnApplyLimits.setTooltip(Tooltip.of(Text.translatable("itemalchemy-expansion.card_forge.bind.apply.tooltip")));
+        btnApplyLimits.setTooltip(Tooltip.create(Component.translatable("itemalchemy-expansion.card_forge.bind.apply.tooltip")));
         addDrawableChild_compatibility(nameField);
         addDrawableChild_compatibility(singleField);
         addDrawableChild_compatibility(totalField);
@@ -200,33 +200,33 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
     /** 当前是否有卡 */
     private boolean hasCard() {
         Slot s0 = this.handler.slots.get(0);
-        return s0 != null && !s0.getStack().isEmpty();
+        return s0 != null && !s0.getItem().isEmpty();
     }
 
     /** 当前槽 0 的卡是否已绑定 */
     private boolean isCardBound() {
         Slot s0 = this.handler.slots.get(0);
-        if (s0 == null || s0.getStack().isEmpty()) return false;
-        return EmcCardItem.isBound(s0.getStack());
+        if (s0 == null || s0.getItem().isEmpty()) return false;
+        return EmcCardItem.isBound(s0.getItem());
     }
 
     /** 当前槽 0 的卡是否已关联 */
     private boolean isCardLinked() {
         Slot s0 = this.handler.slots.get(0);
-        if (s0 == null || s0.getStack().isEmpty()) return false;
-        return EmcCardItem.getLinkGroup(s0.getStack()) != null;
+        if (s0 == null || s0.getItem().isEmpty()) return false;
+        return EmcCardItem.getLinkGroup(s0.getItem()) != null;
     }
 
     private void doBind() {
         if (isCardBound()) {
             CardForgeClientNetwork.sendUnbind();
         } else {
-            CardForgeClientNetwork.sendBind(nameField.getText().trim());
+            CardForgeClientNetwork.sendBind(nameField.getValue().trim());
         }
     }
 
     private void doApplyLimits() {
-        CardForgeClientNetwork.sendSetLimits(parseLong(singleField.getText()), parseLong(totalField.getText()));
+        CardForgeClientNetwork.sendSetLimits(parseLong(singleField.getValue()), parseLong(totalField.getValue()));
     }
 
     private long parseLong(String s) {
@@ -240,7 +240,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
     @Override
     public void drawBackgroundOverride(DrawBackgroundArgs args) {
         // 纯代码绘制，不调 super（背景贴图缺失时避免 GL 报错）
-        DrawContext ctx = args.drawObjectDM.getContext();
+        GuiGraphicsExtractor ctx = args.drawObjectDM.getContext();
         int x = this.x;
         int y = this.y;
 
@@ -251,20 +251,20 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         ctx.fillGradient(x + 1, y + 1, x + BG_W - 1, y + 12, 0xFFD2D2D2, PANEL);
 
         // 标题
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, y - 8, TEXT_MAIN);
+        ctx.centeredText(this.font, this.title, this.width / 2, y - 8, TEXT_MAIN);
 
         // 卡槽底框（含玩家物品栏；属性/绑定页盖住第二槽）。
         // 原版槽位绘制惯例：18x18 底框以槽位坐标为左上角向左上偏移 1px，使 16x16 物品居中
         boolean single = currentTab != TAB_COMBINE;
         for (Slot s : this.handler.slots) {
-            if (single && s.id == 1) continue;
-            drawSlotBox(ctx, x + s.x - 1, y + s.y - 1, s.id < 2);
+            if (single && s.index == 1) continue;
+            drawSlotBox(ctx, x + s.x - 1, y + s.y - 1, s.index < 2);
         }
 
         // 空卡槽画卡片轮廓示意（与转换器一致），指明「卡放这里」
         for (Slot s : this.handler.slots) {
-            if (s.id >= 2) break;
-            if (s.getStack().isEmpty()) {
+            if (s.index >= 2) break;
+            if (s.getItem().isEmpty()) {
                 int cx = x + s.x + 3;
                 int cy = y + s.y + 2;
                 ctx.fill(cx, cy, cx + 10, cy + 12, 0xFFAEB8C2);
@@ -277,25 +277,25 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         switch (currentTab) {
             case TAB_ATTR -> {
                 if (!hasCard()) {
-                    ctx.drawCenteredTextWithShadow(this.textRenderer,
-                            Text.translatable("itemalchemy-expansion.card_forge.no_card"),
+                    ctx.centeredText(this.font,
+                            Component.translatable("itemalchemy-expansion.card_forge.no_card"),
                             this.width / 2, y + 112, TEXT_DIM);
                 }
             }
             case TAB_COMBINE -> {
                 if (isCardLinked()) {
-                    ctx.drawCenteredTextWithShadow(this.textRenderer,
-                            Text.translatable("itemalchemy-expansion.card_forge.link.current"),
+                    ctx.centeredText(this.font,
+                            Component.translatable("itemalchemy-expansion.card_forge.link.current"),
                             this.width / 2, y + 112, ACCENT_DARK);
-                } else if (this.handler.slots.get(0).getStack().isEmpty()
-                        && this.handler.slots.get(1).getStack().isEmpty()) {
-                    ctx.drawCenteredTextWithShadow(this.textRenderer,
-                            Text.translatable("itemalchemy-expansion.card_forge.no_card"),
+                } else if (this.handler.slots.get(0).getItem().isEmpty()
+                        && this.handler.slots.get(1).getItem().isEmpty()) {
+                    ctx.centeredText(this.font,
+                            Component.translatable("itemalchemy-expansion.card_forge.no_card"),
                             this.width / 2, y + 112, TEXT_DIM);
-                } else if (this.handler.slots.get(0).getStack().isEmpty()
-                        || this.handler.slots.get(1).getStack().isEmpty()) {
-                    ctx.drawCenteredTextWithShadow(this.textRenderer,
-                            Text.translatable("itemalchemy-expansion.card_forge.link.need_two"),
+                } else if (this.handler.slots.get(0).getItem().isEmpty()
+                        || this.handler.slots.get(1).getItem().isEmpty()) {
+                    ctx.centeredText(this.font,
+                            Component.translatable("itemalchemy-expansion.card_forge.link.need_two"),
                             this.width / 2, y + 112, TEXT_DIM);
                 }
             }
@@ -304,19 +304,19 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
     }
 
     /** 绑定页：当前绑定状态提示（已绑定时绘制，未绑定时由输入框 placeholder 提示） */
-    private void drawBindInfo(DrawContext ctx, int y) {
+    private void drawBindInfo(GuiGraphicsExtractor ctx, int y) {
         if (!hasCard() || !isCardBound()) return;
-        ItemStack card = this.handler.slots.get(0).getStack();
+        ItemStack card = this.handler.slots.get(0).getItem();
         long single = EmcCardItem.getBindSingleLimit(card);
         long total = EmcCardItem.getBindTotalLimit(card);
         String name = resolveBoundName(card);
-        ctx.drawCenteredTextWithShadow(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.card_forge.bind.bound_success", Text.literal(name)),
+        ctx.centeredText(this.font,
+                Component.translatable("itemalchemy-expansion.card_forge.bind.bound_success", Component.literal(name)),
                 this.width / 2, y + 64, ACCENT_DARK);
-        ctx.drawCenteredTextWithShadow(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.card_forge.bind.limits_display",
-                        Text.literal(EmcCardItem.formatNumber(single)),
-                        Text.literal(EmcCardItem.formatNumber(total))),
+        ctx.centeredText(this.font,
+                Component.translatable("itemalchemy-expansion.card_forge.bind.limits_display",
+                        Component.literal(EmcCardItem.formatNumber(single)),
+                        Component.literal(EmcCardItem.formatNumber(total))),
                 this.width / 2, y + 76, TEXT_DIM);
     }
 
@@ -327,11 +327,11 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         String uuid = EmcCardItem.getBindUuid(card);
         if (uuid == null) return "";
         try {
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc != null && mc.getNetworkHandler() != null) {
-                var entry = mc.getNetworkHandler().getPlayerListEntry(java.util.UUID.fromString(uuid));
+            Minecraft mc = Minecraft.getInstance();
+            if (mc != null && mc.getConnection() != null) {
+                var entry = mc.getConnection().getPlayerInfo(java.util.UUID.fromString(uuid));
                 if (entry != null && entry.getProfile() != null) {
-                    return entry.getProfile().getName();
+                    return entry.getProfile().name();
                 }
             }
         } catch (Throwable t) {
@@ -350,10 +350,10 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         // 按卡态细化绑定页控件显隐与文案
         boolean bound = isCardBound();
         if (currentTab == TAB_BIND) {
-            btnBind.setMessage(Text.translatable(bound
+            btnBind.setMessage(Component.translatable(bound
                     ? "itemalchemy-expansion.card_forge.bind.unbind"
                     : "itemalchemy-expansion.card_forge.bind"));
-            btnBind.setTooltip(Tooltip.of(Text.translatable(bound
+            btnBind.setTooltip(Tooltip.create(Component.translatable(bound
                     ? "itemalchemy-expansion.card_forge.bind.unbind.tooltip"
                     : "itemalchemy-expansion.card_forge.bind.tooltip")));
             // 下拉展开时把绑定按钮移到下拉下方，避免被候选列表遮挡无法点击
@@ -369,7 +369,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
 
         super.renderOverride(args);
 
-        DrawContext ctx = args.drawObjectDM.getContext();
+        GuiGraphicsExtractor ctx = args.drawObjectDM.getContext();
         // 属性/绑定页：用面板色盖住组合专用第二槽（坐标从槽位读取，避免硬编码错位）
         if (currentTab != TAB_COMBINE) {
             Slot s1 = this.handler.slots.get(1);
@@ -387,14 +387,14 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
     private boolean dropdownOpen() {
         return currentTab == TAB_BIND && !isCardBound()
                 && nameField.isVisible()
-                && (nameField.isFocused() || !nameField.getText().trim().isEmpty())
+                && (nameField.isFocused() || !nameField.getValue().trim().isEmpty())
                 && !playerCandidates().isEmpty();
     }
 
     /** 按输入内容模糊匹配在线玩家（前缀优先，最多 DROPDOWN_MAX_ROWS 个） */
     private List<String> playerCandidates() {
         List<String> all = CardForgeClientNetwork.onlinePlayers;
-        String q = nameField.getText().trim().toLowerCase(Locale.ROOT);
+        String q = nameField.getValue().trim().toLowerCase(Locale.ROOT);
         // 未输入时直接取前几项，避免每帧遍历 + 建临时列表
         if (q.isEmpty()) {
             return all.size() > DROPDOWN_MAX_ROWS ? new ArrayList<>(all.subList(0, DROPDOWN_MAX_ROWS)) : all;
@@ -413,7 +413,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         return starts.size() > DROPDOWN_MAX_ROWS ? new ArrayList<>(starts.subList(0, DROPDOWN_MAX_ROWS)) : starts;
     }
 
-    private void drawPlayerDropdown(DrawContext ctx, int mouseX, int mouseY) {
+    private void drawPlayerDropdown(GuiGraphicsExtractor ctx, int mouseX, int mouseY) {
         if (!dropdownOpen()) return;
         List<String> cands = playerCandidates();
         if (cands.isEmpty()) return;
@@ -430,12 +430,14 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
             if (hover) {
                 ctx.fill(dx + 1, ry, dx + dw - 1, ry + DROPDOWN_ROW_H, 0xFFB0D8D4);
             }
-            ctx.drawText(this.textRenderer, cands.get(i), dx + 5, ry + 2, 0xFF303030, false);
+            ctx.text(this.font, cands.get(i), dx + 5, ry + 2, 0xFF303030, false);
         }
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x(), mouseY = event.y();
+        int button = event.button();
         // 1) 玩家下拉候选点击优先
         if (button == 0 && dropdownOpen()) {
             List<String> cands = playerCandidates();
@@ -444,7 +446,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
             if (mouseX >= dx && mouseX < dx + 116 && mouseY >= dy && mouseY < dy + cands.size() * DROPDOWN_ROW_H + 2) {
                 int idx = (int) ((mouseY - dy - 1) / DROPDOWN_ROW_H);
                 if (idx >= 0 && idx < cands.size()) {
-                    nameField.setText(cands.get(idx));
+                    nameField.setValue(cands.get(idx));
                     // 选中后失焦收起下拉，露出下方绑定按钮
                     nameField.setFocused(false);
                     return true;
@@ -462,10 +464,10 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
                 }
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
-    private void drawSlotBox(DrawContext ctx, int sx, int sy, boolean card) {
+    private void drawSlotBox(GuiGraphicsExtractor ctx, int sx, int sy, boolean card) {
         ctx.fill(sx, sy, sx + 18, sy + 18, SLOT_BG);
         drawBorder(ctx, sx, sy, 18, 18, card ? ACCENT_DARK : PANEL_LINE);
         if (card) {
@@ -473,7 +475,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         }
     }
 
-    private void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
+    private void drawBorder(GuiGraphicsExtractor ctx, int x, int y, int w, int h, int color) {
         ctx.fill(x, y, x + w, y + 1, color);
         ctx.fill(x, y + h - 1, x + w, y + h, color);
         ctx.fill(x, y, x + 1, y + h, color);
@@ -482,13 +484,13 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
 
     /**
      * 现代风格按钮（浅色系）：激活标签浅底 + 青色下划线高亮，普通按钮走 MC 灰。
-     * 注意：tabActive 与 {@link ButtonWidget#active}（可用性）是两个独立状态。
+     * 注意：tabActive 与 {@link Button#active}（可用性）是两个独立状态。
      */
-    private static class ModernButton extends ButtonWidget {
+    private static class ModernButton extends Button {
         private boolean tabActive;
 
-        public ModernButton(int x, int y, int width, int height, Text message, PressAction onPress) {
-            super(x, y, width, height, message, onPress, DEFAULT_NARRATION_SUPPLIER);
+        public ModernButton(int x, int y, int width, int height, Component message, OnPress onPress) {
+            super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
         }
 
         public void setTabActive(boolean tabActive) {
@@ -496,7 +498,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
         }
 
         @Override
-        protected void renderButton(DrawContext context, int mouseX, int mouseY, float delta) {
+        protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
             int bg;
             if (tabActive) {
                 bg = 0xFFE4E4E4;
@@ -512,7 +514,7 @@ public class CardForgeScreen extends SimpleInventoryScreen<CardForgeScreenHandle
             context.fill(this.getX(), this.getY(), this.getX() + 1, this.getY() + this.height, PANEL_LINE);
             context.fill(this.getX() + this.width - 1, this.getY(), this.getX() + this.width, this.getY() + this.height, PANEL_LINE);
             int tc = this.active ? 0xFFFFFFFF : 0xFFA0A0A0;
-            this.drawMessage(context, MinecraftClient.getInstance().textRenderer, tc);
+            context.centeredText(Minecraft.getInstance().font, getMessage(), getX() + getWidth() / 2, getY() + (getHeight() - 9) / 2, tc);
         }
     }
 }

@@ -1,9 +1,9 @@
 package itemalchemy.expansion.client.util;
 
 import itemalchemy.expansion.ItemAlchemyExpansion;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.screen.slot.Slot;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.inventory.Slot;
 import net.pitan76.itemalchemy.client.screen.AlchemyTableScreen;
 import net.pitan76.itemalchemy.gui.screen.AlchemyTableScreenHandler;
 
@@ -18,15 +18,20 @@ import java.lang.reflect.Method;
 public final class GuiRenderUtil {
 
     /**
-     * {@link HandledScreen#focusedSlot} 的 intermediary 字段名。
-     * <p>yarn 1.20.1+build.10 中 {@code focusedSlot}（鼠标当前悬停的槽位）→ {@code field_2787}。
-     * 反射用此名读取，兼容无 refmap 的生产环境。</p>
+     * 26.2 里 {@code AbstractContainerScreen.hoveredSlot} 不再由鼠标事件写入，
+     * 而是每帧在 {@code extractRenderState} 内用私有 {@code getHoveredSlot(mouseX, mouseY)} 重新赋值；
+     * 方法的可见性也变为 private，无法直接调用。因此这里按官方字段名读取容器左上角，
+     * 再用鼠标坐标自己做几何命中判定。
      */
-    public static final String HOVERED_SLOT_INTERMEDIARY = "field_2787";
+    private static final String LEFT_POS_FIELD = "leftPos";
+    private static final String TOP_POS_FIELD = "topPos";
+    private static final int SLOT_SIZE = 16;
+    private static final int NOT_FOUND = Integer.MIN_VALUE;
 
-    /** 缓存的反射 Field，首次使用时查找；查找失败置 null 表示不可用 */
-    private static Field hoveredSlotField;
-    private static boolean hoveredSlotFieldResolved = false;
+    /** 缓存的容器左上角反射 Field，首次使用时查找；查找失败置 null 表示不可用 */
+    private static Field leftPosField;
+    private static Field topPosField;
+    private static boolean positionFieldsResolved = false;
 
     /** 缓存的 getScreenHandlerOverride Method，首次使用时查找 */
     private static Method getHandlerMethod;
@@ -38,41 +43,62 @@ public final class GuiRenderUtil {
      * 绘制 1px 粗的矩形边框（4 条线）。调用前应已通过 {@code matrices.translate(0, 0, z)}
      * 设定所需的 z-level，边框与背景同 z。颜色为 ARGB 格式（如 {@code 0xFF505050}）。
      */
-    public static void drawBorder(DrawContext context, int x, int y, int width, int height, int color) {
+    public static void drawBorder(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         context.fill(x, y, x + width, y + 1, color);                   // top
         context.fill(x, y + height - 1, x + width, y + height, color);  // bottom
         context.fill(x, y, x + 1, y + height, color);                   // left
         context.fill(x + width - 1, y, x + width, y + height, color);   // right
     }
 
-    /**
-     * 反射读取 {@link HandledScreen#focusedSlot}（intermediary: {@code field_2787}）。
-     * Field 懒加载并缓存，查找/读取失败返回 null（调用方应静默跳过）。
-     */
-    public static Slot getHoveredSlot(HandledScreen<?> screen) {
-        Field f = resolveHoveredSlotField();
-        if (f == null) return null;
+    /** 按鼠标 GUI 坐标返回当前悬停槽位；不可用时返回 null（调用方应静默跳过）。 */
+    public static Slot getHoveredSlot(AbstractContainerScreen<?> screen, double mouseX, double mouseY) {
+        if (screen == null) return null;
+        int left = readPosition(screen, true);
+        int top = readPosition(screen, false);
+        if (left == NOT_FOUND || top == NOT_FOUND) return null;
         try {
-            return (Slot) f.get(screen);
+            for (Slot slot : screen.getMenu().slots) {
+                if (!slot.isActive()) continue;
+                int slotX = left + slot.x;
+                int slotY = top + slot.y;
+                if (mouseX >= slotX && mouseX < slotX + SLOT_SIZE
+                        && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
+                    return slot;
+                }
+            }
         } catch (Throwable t) {
             return null;
         }
+        return null;
     }
 
-    /** 懒加载并缓存 {@link HandledScreen} 的 focusedSlot 反射 Field */
-    private static Field resolveHoveredSlotField() {
-        if (hoveredSlotFieldResolved) return hoveredSlotField;
+    /** 读取容器左上角坐标；解析失败返回 {@link #NOT_FOUND} */
+    private static int readPosition(AbstractContainerScreen<?> screen, boolean horizontal) {
+        resolvePositionFields();
+        Field field = horizontal ? leftPosField : topPosField;
+        if (field == null) return NOT_FOUND;
         try {
-            Field f = HandledScreen.class.getDeclaredField(HOVERED_SLOT_INTERMEDIARY);
-            f.setAccessible(true);
-            hoveredSlotField = f;
+            return field.getInt(screen);
         } catch (Throwable t) {
-            ItemAlchemyExpansion.LOGGER.warn("[IAExp] Could not resolve HandledScreen.{} (focusedSlot); hover-slot feature disabled",
-                    HOVERED_SLOT_INTERMEDIARY, t);
-            hoveredSlotField = null;
+            return NOT_FOUND;
         }
-        hoveredSlotFieldResolved = true;
-        return hoveredSlotField;
+    }
+
+    /** 懒加载并缓存 {@link AbstractContainerScreen} 的 leftPos/topPos 反射 Field */
+    private static void resolvePositionFields() {
+        if (positionFieldsResolved) return;
+        try {
+            leftPosField = AbstractContainerScreen.class.getDeclaredField(LEFT_POS_FIELD);
+            leftPosField.setAccessible(true);
+            topPosField = AbstractContainerScreen.class.getDeclaredField(TOP_POS_FIELD);
+            topPosField.setAccessible(true);
+        } catch (Throwable t) {
+            ItemAlchemyExpansion.LOGGER.warn("[IAExp] Could not resolve AbstractContainerScreen {} / {}; hover-slot feature disabled",
+                    LEFT_POS_FIELD, TOP_POS_FIELD, t);
+            leftPosField = null;
+            topPosField = null;
+        }
+        positionFieldsResolved = true;
     }
 
     /**

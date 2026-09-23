@@ -5,17 +5,17 @@ import itemalchemy.expansion.config.IAExpConfigHolder;
 import itemalchemy.expansion.gui.EmcConverterScreenHandler;
 import itemalchemy.expansion.item.EmcCardItem;
 import itemalchemy.expansion.network.EmcCardBalanceUtil;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.inventory.SidedInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.Container;
+import net.minecraft.world.WorldlyContainer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.Level;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.mcpitanlib.api.event.block.TileCreateEvent;
 import net.pitan76.mcpitanlib.api.event.container.factory.DisplayNameArgs;
@@ -36,7 +36,7 @@ import org.jetbrains.annotations.Nullable;
  * 全部按 EMC 转为卡内余额并清空。自动装置总开关关闭时 tick 直接返回。</p>
  */
 public class EmcConverterBlockEntity extends CompatBlockEntity
-        implements Inventory, SidedInventory, SimpleScreenHandlerFactory, ExtendBlockEntityTicker<EmcConverterBlockEntity> {
+        implements Container, WorldlyContainer, SimpleScreenHandlerFactory, ExtendBlockEntityTicker<EmcConverterBlockEntity> {
 
     public static final int SLOT_COUNT = 5;
     public static final int CARD_SLOT = 0;
@@ -77,10 +77,10 @@ public class EmcConverterBlockEntity extends CompatBlockEntity
         if (event.isClient()) return;
         if (!IAExpConfigHolder.get().automationEnabled) return;
         if (!hasServerWorld()) return;
-        World world = event.getWorld();
-        if (world == null) return;
+        Level level = event.getWorld();
+        if (level == null) return;
         IAExpConfig cfg = IAExpConfigHolder.get();
-        boolean powered = world.isReceivingRedstonePower(getPos());
+        boolean powered = level.hasNeighborSignal(getBlockPos());
         if (cfg.automationMode == IAExpConfig.AutomationMode.PULSE) {
             // 脉冲模式：每次信号上升沿触发一件（类似投掷器，需高频信号，不持续运行）
             if (powered) {
@@ -107,21 +107,21 @@ public class EmcConverterBlockEntity extends CompatBlockEntity
         for (int i = INPUT_START; i < SLOT_COUNT; i++) {
             ItemStack input = slots[i];
             if (input.isEmpty()) continue;
-            long emc = EMCManager.get(input);
+            long emc = EMCManager.get(input.copyWithCount(1));
             if (emc <= 0) continue;
             // 入账失败（如绑卡目标玩家无队伍）时保留物品，避免「物品被吞、余额未入账」
             if (!EmcCardBalanceUtil.add(getServerWorld().getServer(), card, emc)) continue;
-            input.decrement(1);
+            input.shrink(1);
             if (input.isEmpty()) slots[i] = ItemStack.EMPTY;
-            markDirty();
+            setChanged();
             return;
         }
     }
 
-    // ==================== Inventory ====================
+    // ==================== Container ====================
 
     @Override
-    public int size() {
+    public int getContainerSize() {
         return SLOT_COUNT;
     }
 
@@ -134,52 +134,52 @@ public class EmcConverterBlockEntity extends CompatBlockEntity
     }
 
     @Override
-    public ItemStack getStack(int slot) {
+    public ItemStack getItem(int slot) {
         if (slot < 0 || slot >= SLOT_COUNT) return ItemStack.EMPTY;
         return slots[slot];
     }
 
     @Override
-    public ItemStack removeStack(int slot, int amount) {
+    public ItemStack removeItem(int slot, int amount) {
         if (slot < 0 || slot >= SLOT_COUNT) return ItemStack.EMPTY;
         ItemStack cur = slots[slot];
         if (cur.isEmpty()) return ItemStack.EMPTY;
         ItemStack result = cur.split(amount);
-        markDirty();
+        setChanged();
         return result;
     }
 
     @Override
-    public ItemStack removeStack(int slot) {
+    public ItemStack removeItemNoUpdate(int slot) {
         if (slot < 0 || slot >= SLOT_COUNT) return ItemStack.EMPTY;
         ItemStack cur = slots[slot];
         slots[slot] = ItemStack.EMPTY;
-        markDirty();
+        setChanged();
         return cur;
     }
 
     @Override
-    public void setStack(int slot, ItemStack stack) {
+    public void setItem(int slot, ItemStack stack) {
         if (slot < 0 || slot >= SLOT_COUNT) return;
         slots[slot] = stack;
-        if (!stack.isEmpty() && stack.getCount() > getMaxCountPerStack()) {
-            stack.setCount(getMaxCountPerStack());
+        if (!stack.isEmpty() && stack.getCount() > getMaxStackSize()) {
+            stack.setCount(getMaxStackSize());
         }
-        markDirty();
+        setChanged();
     }
 
     @Override
-    public boolean canPlayerUse(PlayerEntity player) {
-        if (world == null) return false;
-        BlockPos pos = getPos();
-        return player.squaredDistanceTo(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
+    public boolean stillValid(Player player) {
+        if (level == null) return false;
+        BlockPos pos = getBlockPos();
+        return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
     }
 
     // ==================== 漏斗 / 自动化访问控制 ====================
 
     /** 卡槽仅接受 EMC 卡；输入槽拒绝 EMC 卡（卡会被当作物品转换消耗） */
     @Override
-    public boolean isValid(int slot, ItemStack stack) {
+    public boolean canPlaceItem(int slot, ItemStack stack) {
         if (slot == CARD_SLOT) {
             return stack.getItem() instanceof EmcCardItem;
         }
@@ -187,55 +187,55 @@ public class EmcConverterBlockEntity extends CompatBlockEntity
     }
 
     @Override
-    public int[] getAvailableSlots(Direction side) {
+    public int[] getSlotsForFace(Direction side) {
         return AUTOMATION_SLOTS;
     }
 
     @Override
-    public boolean canInsert(int slot, ItemStack stack, @Nullable Direction dir) {
-        return isValid(slot, stack);
+    public boolean canPlaceItemThroughFace(int slot, ItemStack stack, @Nullable Direction dir) {
+        return canPlaceItem(slot, stack);
     }
 
     /** 输入槽可被抽出（无 EMC 的残留物可通过下方漏斗排走）；卡槽不可被自动化抽走 */
     @Override
-    public boolean canExtract(int slot, ItemStack stack, Direction dir) {
+    public boolean canTakeItemThroughFace(int slot, ItemStack stack, Direction dir) {
         return slot != CARD_SLOT;
     }
 
     @Override
-    public void clear() {
+    public void clearContent() {
         clearSlots();
-        markDirty();
+        setChanged();
     }
 
     // ==================== NBT ====================
 
     @Override
     public void writeNbt(WriteNbtArgs args) {
-        NbtCompound nbt = args.getNbt();
+        CompoundTag nbt = args.getNbt();
         for (int i = 0; i < SLOT_COUNT; i++) {
-            nbt.put("slot_" + i, slots[i].writeNbt(new NbtCompound()));
+            nbt.put("slot_" + i, itemalchemy.expansion.compat.port.StackData.writeNbt(slots[i], new CompoundTag()));
         }
     }
 
     @Override
     public void readNbt(ReadNbtArgs args) {
-        NbtCompound nbt = args.getNbt();
+        CompoundTag nbt = args.getNbt();
         for (int i = 0; i < SLOT_COUNT; i++) {
-            slots[i] = ItemStack.fromNbt(nbt.getCompound("slot_" + i));
+            slots[i] = itemalchemy.expansion.compat.port.StackData.fromNbt(nbt.getCompound("slot_" + i));
         }
     }
 
-    // ==================== ScreenHandler ====================
+    // ==================== AbstractContainerMenu ====================
 
     @Nullable
     @Override
-    public ScreenHandler createMenu(CreateMenuEvent e) {
+    public AbstractContainerMenu createMenu(CreateMenuEvent e) {
         return new EmcConverterScreenHandler(e, this);
     }
 
     @Override
-    public net.minecraft.text.Text getDisplayName(DisplayNameArgs args) {
+    public net.minecraft.network.chat.Component getDisplayName(DisplayNameArgs args) {
         return TextUtil.translatable("block.itemalchemy-expansion.emc_converter");
     }
 }

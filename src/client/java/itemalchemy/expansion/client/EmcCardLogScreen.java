@@ -2,14 +2,14 @@ package itemalchemy.expansion.client;
 
 import itemalchemy.expansion.client.util.GuiRenderUtil;
 import itemalchemy.expansion.item.EmcCardItem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.network.chat.Component;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -29,21 +29,21 @@ public class EmcCardLogScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() { return false; }
+    public boolean isPauseScreen() { return false; }
 
     @Override
     protected void init() {
         int centerX = this.width / 2;
         int panelTop = this.height / 2 - 100;
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.cancel"),
-                b -> MinecraftClient.getInstance().setScreen(new EmcCardMainScreen()))
-                .dimensions(centerX - 60, panelTop + 170, 120, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.cancel"),
+                b -> Minecraft.getInstance().setScreenAndShow(new EmcCardMainScreen()))
+                .bounds(centerX - 60, panelTop + 170, 120, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // The 26.2 GUI manager already extracts the screen background.
         int centerX = this.width / 2;
         int panelLeft = centerX - PANEL_WIDTH / 2;
         int panelTop = this.height / 2 - 100;
@@ -52,31 +52,31 @@ public class EmcCardLogScreen extends Screen {
         context.fill(panelLeft, panelTop, panelLeft + PANEL_WIDTH, panelTop + panelHeight, 0xE0101420);
         GuiRenderUtil.drawBorder(context, panelLeft, panelTop, PANEL_WIDTH, panelHeight, 0xFF5060A0);
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.centeredText(this.font, this.title,
                 centerX, panelTop + PADDING, 0xFFE0E0FF);
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.emc_card.log.title"),
+        context.centeredText(this.font,
+                Component.translatable("itemalchemy-expansion.emc_card.log.title"),
                 centerX, panelTop + PADDING + 11, 0xFF8080A0);
 
         int lineY = panelTop + PADDING + 23;
         context.fill(panelLeft + PADDING, lineY, panelLeft + PANEL_WIDTH - PADDING, lineY + 1, 0xFF405080);
 
         ItemStack card = getCardStack();
-        NbtList list = EmcCardItem.getTransactions(card);
+        ListTag list = EmcCardItem.getTransactions(card);
 
         if (list.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.emc_card.log.empty")
-                            .formatted(net.minecraft.util.Formatting.GRAY),
+            context.centeredText(this.font,
+                    Component.translatable("itemalchemy-expansion.emc_card.log.empty")
+                            .withStyle(net.minecraft.ChatFormatting.GRAY),
                     centerX, lineY + 20, 0xFF808080);
         } else {
             int y = lineY + 8;
             // 倒序显示（最新在上）
             for (int i = list.size() - 1; i >= 0 && y < panelTop + panelHeight - 30; i--) {
-                NbtCompound entry = list.getCompound(i);
-                byte type = entry.getByte("type");
-                long amount = entry.getLong("amount");
-                long time = entry.getLong("time");
+                CompoundTag entry = list.getCompound(i).orElseGet(CompoundTag::new);
+                byte type = entry.getByteOr("type", (byte)0);
+                long amount = entry.getLongOr("amount", 0L);
+                long time = entry.getLongOr("time", 0L);
 
                 String typeKey = type == EmcCardItem.TX_DEPOSIT
                         ? "itemalchemy-expansion.emc_card.log.deposit"
@@ -84,23 +84,23 @@ public class EmcCardLogScreen extends Screen {
                 int typeColor = type == EmcCardItem.TX_DEPOSIT ? 0xFF40E060 : 0xFFFF8040;
 
                 String timeStr = DATE_FMT.format(new Date(time));
-                Text line = Text.literal("§7" + timeStr + " §r")
-                        .append(Text.translatable(typeKey).formatted(net.minecraft.util.Formatting.BOLD))
+                Component line = Component.literal("§7" + timeStr + " §r")
+                        .append(Component.translatable(typeKey).withStyle(net.minecraft.ChatFormatting.BOLD))
                         .append(" " + EmcCardItem.formatNumber(amount) + " EMC");
 
-                context.drawText(this.textRenderer, line,
+                context.text(this.font, line,
                         panelLeft + PADDING, y, typeColor, false);
                 y += LINE_HEIGHT;
             }
         }
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     private ItemStack getCardStack() {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.player == null) return ItemStack.EMPTY;
-        ItemStack mainHand = mc.player.getMainHandStack();
+        ItemStack mainHand = mc.player.getMainHandItem();
         if (mainHand.isEmpty() || !(mainHand.getItem() instanceof EmcCardItem)) return ItemStack.EMPTY;
         return mainHand;
     }

@@ -8,16 +8,16 @@ import itemalchemy.expansion.network.AutoEmcStore;
 import itemalchemy.expansion.network.PreciseEmcStore;
 import itemalchemy.expansion.network.SetEmcNetwork;
 import itemalchemy.expansion.util.EmcQueryUtil;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
+import itemalchemy.expansion.compat.port.FilteredEditBox;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import net.pitan76.itemalchemy.EMCManager;
 
 /**
@@ -32,7 +32,7 @@ import net.pitan76.itemalchemy.EMCManager;
  * </ul>
  * 无 NBT 物品两者等价。</p>
  *
- * <p>覆写 {@link #shouldPause()} 返回 true，单人世界中打开此界面时暂停世界 tick。</p>
+ * <p>覆写 {@link #isPauseScreen()} 返回 true，单人世界中打开此界面时暂停世界 tick。</p>
  */
 public class SetEmcScreen extends Screen {
 
@@ -53,21 +53,21 @@ public class SetEmcScreen extends Screen {
     private final long currentEmc;
 
     /** EMC 值输入框 */
-    private TextFieldWidget emcField;
+    private FilteredEditBox emcField;
     /** 定价精度切换按钮 */
-    private CyclingButtonWidget<Precision> precisionButton;
+    private CycleButton<Precision> precisionButton;
     /** 作用范围切换按钮 */
-    private CyclingButtonWidget<Scope> scopeButton;
+    private CycleButton<Scope> scopeButton;
     /** 当前选择的定价精度 */
     private Precision precision;
     /** 当前选择的作用范围 */
     private Scope scope = Scope.THIS_SAVE;
 
     /** 校验错误提示（null 表示无错误）；点击确认后若非法则设置，渲染时显示红色 */
-    private Text errorText;
+    private Component errorText;
 
     public SetEmcScreen(ItemStack targetStack) {
-        super(Text.translatable("itemalchemy-expansion.set_emc.title"));
+        super(Component.translatable("itemalchemy-expansion.set_emc.title"));
         this.targetStack = targetStack.copy();
         this.itemId = EmcQueryUtil.resolveItemId(targetStack);
         // 算变体键，依赖 IAExpServices 已 init
@@ -75,14 +75,14 @@ public class SetEmcScreen extends Screen {
         this.variantKey = vk.toStorageString();
         this.nbtBrief = extractNbtBrief(targetStack);
         // 有 NBT 的物品默认 PRECISE（精确配置的意义所在），无 NBT 默认 GENERAL（两者等价）
-        NbtCompound nbt = targetStack.getNbt();
+        CompoundTag nbt = itemalchemy.expansion.compat.port.StackData.getNbt(targetStack);
         this.precision = (nbt != null && !nbt.isEmpty()) ? Precision.PRECISE : Precision.GENERAL;
         this.currentEmc = resolveCurrentEmc(this.itemId, this.variantKey, this.precision);
     }
 
     /** 提取 NBT 简要串（截断到 30 字符）用于显示。无 NBT 返回空串 */
     private static String extractNbtBrief(ItemStack stack) {
-        NbtCompound nbt = stack.getNbt();
+        CompoundTag nbt = itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt == null || nbt.isEmpty()) return "";
         String s = nbt.toString();
         return s.length() > 30 ? s.substring(0, 30) + "..." : s;
@@ -110,7 +110,7 @@ public class SetEmcScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return true;
     }
 
@@ -122,12 +122,12 @@ public class SetEmcScreen extends Screen {
         int fieldWidth = 160;
         int fieldX = centerX - fieldWidth / 2;
         int fieldY = this.height / 2 - 18;
-        emcField = new TextFieldWidget(this.textRenderer, fieldX, fieldY, fieldWidth, 16,
-                Text.translatable("itemalchemy-expansion.set_emc.emc_field"));
+        emcField = new FilteredEditBox(this.font, fieldX, fieldY, fieldWidth, 16,
+                Component.translatable("itemalchemy-expansion.set_emc.emc_field"));
         emcField.setMaxLength(18);
-        emcField.setText(String.valueOf(currentEmc));
+        emcField.setValue(String.valueOf(currentEmc));
         emcField.setTextPredicate(this::isValidEmcInput);
-        addDrawableChild(emcField);
+        addRenderableWidget(emcField);
         // 关键：必须让 Screen.focused 指向输入框，否则 keyPressed/charTyped
         // 会因为 this.focused==null 而直接返回 false，键盘事件全部丢失
         // （退格删除、数字键、IME 字符都进不来，表现为「卡输入法」）
@@ -135,50 +135,50 @@ public class SetEmcScreen extends Screen {
 
         int precisionY = fieldY + 26;
         int precisionWidth = 160;
-        precisionButton = CyclingButtonWidget.<Precision>builder(SetEmcScreen::precisionDisplayName)
-                .values(Precision.PRECISE, Precision.GENERAL)
-                .initially(precision)
-                .build(centerX - precisionWidth / 2, precisionY, precisionWidth, 20,
-                        Text.translatable("itemalchemy-expansion.set_emc.precision_label"),
+        precisionButton = CycleButton.<Precision>builder(SetEmcScreen::precisionDisplayName, precision)
+                .withValues(Precision.PRECISE, Precision.GENERAL)
+                
+                .create(centerX - precisionWidth / 2, precisionY, precisionWidth, 20,
+                        Component.translatable("itemalchemy-expansion.set_emc.precision_label"),
                         (button, value) -> {
                             precision = value;
                             // 切换精度时刷新输入框默认值
                             long refreshed = resolveCurrentEmc(itemId, variantKey, precision);
-                            emcField.setText(String.valueOf(refreshed));
+                            emcField.setValue(String.valueOf(refreshed));
                             // Screen.mouseClicked 在 widget.mouseClicked 返回 true 后会
                             // 把焦点设到按钮上，同步 setFocused 会被覆盖。延迟到下一帧
                             // 把焦点还给输入框，让用户切换精度后能直接继续输入新值。
-                            MinecraftClient.getInstance().execute(() -> this.setFocused(emcField));
+                            Minecraft.getInstance().execute(() -> this.setFocused(emcField));
                         });
-        addDrawableChild(precisionButton);
+        addRenderableWidget(precisionButton);
 
         int scopeY = precisionY + 26;
         int scopeWidth = 160;
-        scopeButton = CyclingButtonWidget.<Scope>builder(SetEmcScreen::scopeDisplayName)
-                .values(Scope.THIS_SAVE, Scope.GLOBAL)
-                .initially(scope)
-                .build(centerX - scopeWidth / 2, scopeY, scopeWidth, 20,
-                        Text.translatable("itemalchemy-expansion.set_emc.scope_label"),
+        scopeButton = CycleButton.<Scope>builder(SetEmcScreen::scopeDisplayName, scope)
+                .withValues(Scope.THIS_SAVE, Scope.GLOBAL)
+                
+                .create(centerX - scopeWidth / 2, scopeY, scopeWidth, 20,
+                        Component.translatable("itemalchemy-expansion.set_emc.scope_label"),
                         (button, value) -> {
                             scope = value;
-                            MinecraftClient.getInstance().execute(() -> this.setFocused(emcField));
+                            Minecraft.getInstance().execute(() -> this.setFocused(emcField));
                         });
-        addDrawableChild(scopeButton);
+        addRenderableWidget(scopeButton);
 
         int btnY = scopeY + 30;
         int btnWidth = 80;
         int btnGap = 8;
         int leftBtnX = centerX - btnWidth - btnGap / 2;
         int rightBtnX = centerX + btnGap / 2;
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.set_emc.confirm"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.set_emc.confirm"),
                 b -> onConfirm())
-                .dimensions(leftBtnX, btnY, btnWidth, 20)
+                .bounds(leftBtnX, btnY, btnWidth, 20)
                 .build());
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.set_emc.cancel"),
-                b -> this.close())
-                .dimensions(rightBtnX, btnY, btnWidth, 20)
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.set_emc.cancel"),
+                b -> this.onClose())
+                .bounds(rightBtnX, btnY, btnWidth, 20)
                 .build());
     }
 
@@ -192,38 +192,38 @@ public class SetEmcScreen extends Screen {
         return true;
     }
 
-    private static Text scopeDisplayName(Scope s) {
-        return Text.translatable("itemalchemy-expansion.set_emc.scope." + s.name().toLowerCase());
+    private static Component scopeDisplayName(Scope s) {
+        return Component.translatable("itemalchemy-expansion.set_emc.scope." + s.name().toLowerCase());
     }
 
-    private static Text precisionDisplayName(Precision p) {
-        return Text.translatable("itemalchemy-expansion.set_emc.precision." + p.name().toLowerCase());
+    private static Component precisionDisplayName(Precision p) {
+        return Component.translatable("itemalchemy-expansion.set_emc.precision." + p.name().toLowerCase());
     }
 
     /** 确认按钮回调：解析 EMC 值，发送网络包，关闭界面。 */
     private void onConfirm() {
-        String raw = emcField.getText().trim();
+        String raw = emcField.getValue().trim();
         itemalchemy.expansion.ItemAlchemyExpansion.debug(
                 "[IAExp][SetEmc] onConfirm raw: precision={}, scope={}, rawField='{}' (len={}), itemId='{}', variantKey='{}'",
                 precision, scope, raw, raw.length(), itemId, variantKey);
         if (raw.isEmpty()) {
-            errorText = Text.translatable("itemalchemy-expansion.set_emc.fail.empty")
-                    .formatted(Formatting.RED);
+            errorText = Component.translatable("itemalchemy-expansion.set_emc.fail.empty")
+                    .withStyle(ChatFormatting.RED);
             return;
         }
         long emc;
         try {
             emc = Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            errorText = Text.translatable("itemalchemy-expansion.set_emc.fail.parse")
-                    .formatted(Formatting.RED);
+            errorText = Component.translatable("itemalchemy-expansion.set_emc.fail.parse")
+                    .withStyle(ChatFormatting.RED);
             itemalchemy.expansion.ItemAlchemyExpansion.LOGGER.warn(
                     "[IAExp][SetEmc] parse failed: raw='{}'", raw);
             return;
         }
         if (emc < 0) {
-            errorText = Text.translatable("itemalchemy-expansion.set_emc.fail.negative")
-                    .formatted(Formatting.RED);
+            errorText = Component.translatable("itemalchemy-expansion.set_emc.fail.negative")
+                    .withStyle(ChatFormatting.RED);
             return;
         }
 
@@ -234,7 +234,7 @@ public class SetEmcScreen extends Screen {
         if (precise) {
             // 精确模式：直接发送，无需查询 L1 候选
             SetEmcClientNetwork.sendSetEmc(itemId, emc, scopeCode, true, variantKey, null);
-            this.close();
+            this.onClose();
             return;
         }
 
@@ -242,15 +242,15 @@ public class SetEmcScreen extends Screen {
         final long finalEmc = emc;
         final int finalScopeCode = scopeCode;
         SetEmcClientNetwork.setPendingPreciseQueryCallback(variants -> {
-            MinecraftClient mc = MinecraftClient.getInstance();
+            Minecraft mc = Minecraft.getInstance();
             if (variants == null || variants.isEmpty()) {
                 // 无 L1 覆盖：直接设通用价，不清除
                 SetEmcClientNetwork.sendSetEmc(itemId, finalEmc, finalScopeCode, false, "", null);
-                if (mc != null) mc.setScreen(null);
+                if (mc != null) mc.setScreenAndShow(null);
                 return;
             }
             // 有 L1 覆盖：弹精美确认框（复选框逐个选择 + 物品图标/名称/旧EMC）
-            mc.setScreen(new OverwritePreciseConfirmScreen(
+            mc.setScreenAndShow(new OverwritePreciseConfirmScreen(
                     itemId, finalEmc, variants,
                     toClear -> {
                         // 确认：发送 set_emc 包，带要清除的变体键列表
@@ -258,7 +258,7 @@ public class SetEmcScreen extends Screen {
                     },
                     () -> {
                         // 取消：回到 SetEmcScreen
-                        if (mc != null) mc.setScreen(this);
+                        if (mc != null) mc.setScreenAndShow(this);
                     }
             ));
         });
@@ -266,8 +266,8 @@ public class SetEmcScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // The 26.2 GUI manager already extracts the screen background.
 
         int centerX = this.width / 2;
         int panelLeft = centerX - PANEL_WIDTH / 2;
@@ -279,50 +279,50 @@ public class SetEmcScreen extends Screen {
         context.fill(panelLeft, panelTop, panelLeft + PANEL_WIDTH, panelBottom, 0xC0101010);
         GuiRenderUtil.drawBorder(context, panelLeft, panelTop, PANEL_WIDTH, panelHeight, 0xFF404040);
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.centeredText(this.font, this.title,
                 centerX, panelTop + PADDING, 0xFFFFFF);
 
         int itemY = panelTop + PADDING + 18;
         int itemIconX = panelLeft + PADDING + 2;
-        context.drawItem(targetStack, itemIconX, itemY - 4);
-        context.drawText(this.textRenderer, targetStack.getName(),
+        context.item(targetStack, itemIconX, itemY - 4);
+        context.text(this.font, targetStack.getHoverName(),
                 itemIconX + 20, itemY, 0xFFFFFF, true);
-        Text idText = Text.literal(itemId).formatted(Formatting.GRAY);
-        context.drawText(this.textRenderer, idText,
+        Component idText = Component.literal(itemId).withStyle(ChatFormatting.GRAY);
+        context.text(this.font, idText,
                 itemIconX + 20, itemY + 10, 0xA0A0A0, false);
-        Text currentText = Text.translatable("itemalchemy-expansion.set_emc.current_emc",
-                String.format("%,d", currentEmc)).formatted(Formatting.YELLOW);
-        context.drawText(this.textRenderer, currentText,
+        Component currentText = Component.translatable("itemalchemy-expansion.set_emc.current_emc",
+                String.format("%,d", currentEmc)).withStyle(ChatFormatting.YELLOW);
+        context.text(this.font, currentText,
                 itemIconX + 20, itemY + 21, 0xFFFF00, false);
         // 精确模式且有 NBT 时显示变体简要
         if (!nbtBrief.isEmpty()) {
-            Text variantText = Text.translatable("itemalchemy-expansion.set_emc.variant_label",
-                    nbtBrief).formatted(Formatting.DARK_GRAY);
-            context.drawText(this.textRenderer, variantText,
+            Component variantText = Component.translatable("itemalchemy-expansion.set_emc.variant_label",
+                    nbtBrief).withStyle(ChatFormatting.DARK_GRAY);
+            context.text(this.font, variantText,
                     itemIconX + 20, itemY + 32, 0x808080, false);
         }
 
-        Text fieldLabel = Text.translatable("itemalchemy-expansion.set_emc.new_emc_label");
-        context.drawText(this.textRenderer, fieldLabel,
+        Component fieldLabel = Component.translatable("itemalchemy-expansion.set_emc.new_emc_label");
+        context.text(this.font, fieldLabel,
                 panelLeft + PADDING, emcField.getY() - 11, 0xC0C0C0, false);
 
-        Text precisionHint = Text.translatable(
+        Component precisionHint = Component.translatable(
                 "itemalchemy-expansion.set_emc.precision." + precision.name().toLowerCase() + ".hint")
-                .formatted(Formatting.DARK_GRAY);
-        context.drawText(this.textRenderer, precisionHint,
+                .withStyle(ChatFormatting.DARK_GRAY);
+        context.text(this.font, precisionHint,
                 panelLeft + PADDING, precisionButton.getY() + 22, 0x808080, false);
 
-        Text scopeHint = Text.translatable("itemalchemy-expansion.set_emc.scope." + scope.name().toLowerCase() + ".hint")
-                .formatted(Formatting.DARK_GRAY);
-        context.drawText(this.textRenderer, scopeHint,
+        Component scopeHint = Component.translatable("itemalchemy-expansion.set_emc.scope." + scope.name().toLowerCase() + ".hint")
+                .withStyle(ChatFormatting.DARK_GRAY);
+        context.text(this.font, scopeHint,
                 panelLeft + PADDING, scopeButton.getY() + 22, 0x808080, false);
 
         if (errorText != null) {
-            context.drawCenteredTextWithShadow(this.textRenderer, errorText,
+            context.centeredText(this.font, errorText,
                     centerX, scopeButton.getY() + 38, 0xFF5555);
         }
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     /** 作用范围枚举 */

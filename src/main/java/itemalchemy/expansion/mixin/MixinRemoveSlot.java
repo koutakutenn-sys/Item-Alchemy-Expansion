@@ -3,7 +3,7 @@ package itemalchemy.expansion.mixin;
 import itemalchemy.expansion.IAExpServices;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.nbt.ItemVariantKey;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 import net.pitan76.itemalchemy.gui.slot.RemoveSlot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;

@@ -9,8 +9,8 @@ import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.impl.builders.EnumSelectorBuilder;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +49,7 @@ public final class IAExpClothConfigScreen {
 
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
-                .setTitle(Text.translatable("itemalchemy-expansion.config.title"));
+                .setTitle(Component.translatable("itemalchemy-expansion.config.title"));
 
         // 用 cloth-config 默认背景（深色半透 + 渲染游戏世界）。
         // 之前用 setTransparentBackground(true) 会让配置页背景透明，但父界面
@@ -101,27 +101,27 @@ public final class IAExpClothConfigScreen {
 
     // ============ 枚举名映射工具 ============
     // Cloth Config 11.1.136 的 EnumSelectorBuilder.setEnumNameProvider 接收
-    // Function<Enum, Text>（注意是原始 Enum 类型，不是泛型 T），因此这里用 Function<Enum, Text>。
+    // Function<Enum, Component>（注意是原始 Enum 类型，不是泛型 T），因此这里用 Function<Enum, Component>。
 
     /** DisplayMode 直观名 */
-    private static final Function<Enum, Text> DISPLAY_MODE_NAMING = e ->
-            Text.translatable("itemalchemy-expansion.config.displayMode.option." + e.name().toLowerCase());
+    private static final Function<Enum, Component> DISPLAY_MODE_NAMING = e ->
+            Component.translatable("itemalchemy-expansion.config.displayMode.option." + e.name().toLowerCase());
 
     /** ShulkerBoxMode 直观名：ALLOW→「开启」, DISABLE→「关闭」 */
-    private static final Function<Enum, Text> SHULKER_MODE_NAMING = e ->
-            Text.translatable("itemalchemy-expansion.config.shulkerBoxMode.option." + e.name().toLowerCase());
+    private static final Function<Enum, Component> SHULKER_MODE_NAMING = e ->
+            Component.translatable("itemalchemy-expansion.config.shulkerBoxMode.option." + e.name().toLowerCase());
 
     /** ShulkerNoEmcPolicy 直观名：REJECT→「拒绝放入」, ALLOW_AS_ZERO→「按 0 计并允许」 */
-    private static final Function<Enum, Text> SHULKER_POLICY_NAMING = e ->
-            Text.translatable("itemalchemy-expansion.config.shulkerNoEmcPolicy.option." + e.name().toLowerCase());
+    private static final Function<Enum, Component> SHULKER_POLICY_NAMING = e ->
+            Component.translatable("itemalchemy-expansion.config.shulkerNoEmcPolicy.option." + e.name().toLowerCase());
 
     /** AutoPricingStrategy 直观名：MIN→「最小值」, MAX→「最大值」, AVG→「平均值」, FIRST→「首个」 */
-    private static final Function<Enum, Text> AUTO_PRICING_STRATEGY_NAMING = e ->
-            Text.translatable("itemalchemy-expansion.config.autoPricingStrategy.option." + e.name().toLowerCase());
+    private static final Function<Enum, Component> AUTO_PRICING_STRATEGY_NAMING = e ->
+            Component.translatable("itemalchemy-expansion.config.autoPricingStrategy.option." + e.name().toLowerCase());
 
     /** AutomationMode 直观名：CONTINUOUS→「持续」, PULSE→「脉冲」 */
-    private static final Function<Enum, Text> AUTOMATION_MODE_NAMING = e ->
-            Text.translatable("itemalchemy-expansion.config.automationMode.option." + e.name().toLowerCase());
+    private static final Function<Enum, Component> AUTOMATION_MODE_NAMING = e ->
+            Component.translatable("itemalchemy-expansion.config.automationMode.option." + e.name().toLowerCase());
 
     /**
      * 注册所有分类与条目。新增配置项时在此追加即可。
@@ -138,166 +138,166 @@ public final class IAExpClothConfigScreen {
     private static void buildCategories(ConfigBuilder builder, ConfigEntryBuilder entries, IAExpConfig c) {
         // ===== General =====
         ConfigCategory general = builder.getOrCreateCategory(
-                Text.translatable("itemalchemy-expansion.config.category.general"));
+                Component.translatable("itemalchemy-expansion.config.category.general"));
 
         general.addEntry(entries
-                .startEnumSelector(Text.translatable("itemalchemy-expansion.config.displayMode"),
+                .startEnumSelector(Component.translatable("itemalchemy-expansion.config.displayMode"),
                         IAExpConfig.DisplayMode.class, c.displayMode)
                 .setDefaultValue(IAExpConfig.DisplayMode.ICON_AND_NAME)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.displayMode.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.displayMode.tooltip"))
                 .setEnumNameProvider(DISPLAY_MODE_NAMING)
                 .setSaveConsumer(v -> c.displayMode = v)
                 .build());
 
         general.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.searchByTranslatedName"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.searchByTranslatedName"),
                         c.searchByTranslatedName)
                 .setDefaultValue(true)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.searchByTranslatedName.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.searchByTranslatedName.tooltip"))
                 .setSaveConsumer(v -> c.searchByTranslatedName = v)
                 .build());
 
         general.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.renderNameUnderSlot"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.renderNameUnderSlot"),
                         c.renderNameUnderSlot)
                 .setDefaultValue(false)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.renderNameUnderSlot.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.renderNameUnderSlot.tooltip"))
                 .setSaveConsumer(v -> c.renderNameUnderSlot = v)
                 .build());
 
         // ===== Shulker Box =====
         ConfigCategory shulker = builder.getOrCreateCategory(
-                Text.translatable("itemalchemy-expansion.config.category.shulker_box"));
+                Component.translatable("itemalchemy-expansion.config.category.shulker_box"));
 
         shulker.addEntry(entries
-                .startEnumSelector(Text.translatable("itemalchemy-expansion.config.shulkerBoxMode"),
+                .startEnumSelector(Component.translatable("itemalchemy-expansion.config.shulkerBoxMode"),
                         IAExpConfig.ShulkerBoxMode.class, c.shulkerBoxMode)
                 .setDefaultValue(IAExpConfig.ShulkerBoxMode.ALLOW)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.shulkerBoxMode.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.shulkerBoxMode.tooltip"))
                 .setEnumNameProvider(SHULKER_MODE_NAMING)
                 .setSaveConsumer(v -> c.shulkerBoxMode = v)
                 .build());
 
         shulker.addEntry(entries
-                .startEnumSelector(Text.translatable("itemalchemy-expansion.config.shulkerNoEmcPolicy"),
+                .startEnumSelector(Component.translatable("itemalchemy-expansion.config.shulkerNoEmcPolicy"),
                         IAExpConfig.ShulkerNoEmcPolicy.class, c.shulkerNoEmcPolicy)
                 .setDefaultValue(IAExpConfig.ShulkerNoEmcPolicy.REJECT)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.shulkerNoEmcPolicy.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.shulkerNoEmcPolicy.tooltip"))
                 .setEnumNameProvider(SHULKER_POLICY_NAMING)
                 .setSaveConsumer(v -> c.shulkerNoEmcPolicy = v)
                 .build());
 
         shulker.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.builtInShulkerPreview"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.builtInShulkerPreview"),
                         c.builtInShulkerPreview)
                 .setDefaultValue(true)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.builtInShulkerPreview.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.builtInShulkerPreview.tooltip"))
                 .setSaveConsumer(v -> c.builtInShulkerPreview = v)
                 .build());
 
         // ===== Advanced =====
         ConfigCategory advanced = builder.getOrCreateCategory(
-                Text.translatable("itemalchemy-expansion.config.category.advanced"));
+                Component.translatable("itemalchemy-expansion.config.category.advanced"));
 
         advanced.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.debugLogging"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.debugLogging"),
                         c.debugLogging)
                 .setDefaultValue(false)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.debugLogging.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.debugLogging.tooltip"))
                 .setSaveConsumer(v -> c.debugLogging = v)
                 .build());
 
         advanced.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.fullIgnoreDamageAndRepairCost"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.fullIgnoreDamageAndRepairCost"),
                         c.fullIgnoreDamageAndRepairCost)
                 .setDefaultValue(true)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.fullIgnoreDamageAndRepairCost.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.fullIgnoreDamageAndRepairCost.tooltip"))
                 .setSaveConsumer(v -> c.fullIgnoreDamageAndRepairCost = v)
                 .build());
 
         advanced.addEntry(entries
-                .startStrList(Text.translatable("itemalchemy-expansion.config.ignoreNbtKeys"),
+                .startStrList(Component.translatable("itemalchemy-expansion.config.ignoreNbtKeys"),
                         new ArrayList<>(c.ignoreNbtKeys))
                 .setDefaultValue(new ArrayList<>())
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.ignoreNbtKeys.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.ignoreNbtKeys.tooltip"))
                 .setSaveConsumer((List<String> v) -> c.ignoreNbtKeys = v)
                 .build());
 
         // ===== Automation（自动装置）=====
         ConfigCategory automation = builder.getOrCreateCategory(
-                Text.translatable("itemalchemy-expansion.config.category.automation"));
+                Component.translatable("itemalchemy-expansion.config.category.automation"));
 
         automation.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.automationEnabled"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.automationEnabled"),
                         c.automationEnabled)
                 .setDefaultValue(true)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.automationEnabled.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.automationEnabled.tooltip"))
                 .setSaveConsumer(v -> c.automationEnabled = v)
                 .build());
 
         automation.addEntry(entries
-                .startIntField(Text.translatable("itemalchemy-expansion.config.automationIntervalTicks"),
+                .startIntField(Component.translatable("itemalchemy-expansion.config.automationIntervalTicks"),
                         c.automationIntervalTicks)
                 .setDefaultValue(5)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.automationIntervalTicks.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.automationIntervalTicks.tooltip"))
                 .setSaveConsumer(v -> c.automationIntervalTicks = Math.max(1, v))
                 .build());
 
         automation.addEntry(entries
-                .startEnumSelector(Text.translatable("itemalchemy-expansion.config.automationMode"),
+                .startEnumSelector(Component.translatable("itemalchemy-expansion.config.automationMode"),
                         IAExpConfig.AutomationMode.class, c.automationMode)
                 .setDefaultValue(IAExpConfig.AutomationMode.PULSE)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.automationMode.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.automationMode.tooltip"))
                 .setEnumNameProvider(AUTOMATION_MODE_NAMING)
                 .setSaveConsumer(v -> c.automationMode = v)
                 .build());
 
         // ===== Experimental =====
         ConfigCategory experimental = builder.getOrCreateCategory(
-                Text.translatable("itemalchemy-expansion.config.category.experimental"));
+                Component.translatable("itemalchemy-expansion.config.category.experimental"));
 
         experimental.addEntry(entries
-                .startTextDescription(Text.translatable("itemalchemy-expansion.config.experimental.note"))
+                .startTextDescription(Component.translatable("itemalchemy-expansion.config.experimental.note"))
                 .build());
 
         experimental.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.autoPricingFromRecipes"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.autoPricingFromRecipes"),
                         c.autoPricingFromRecipes)
                 .setDefaultValue(false)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.autoPricingFromRecipes.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.autoPricingFromRecipes.tooltip"))
                 .setSaveConsumer(v -> c.autoPricingFromRecipes = v)
                 .build());
 
         experimental.addEntry(entries
-                .startEnumSelector(Text.translatable("itemalchemy-expansion.config.autoPricingStrategy"),
+                .startEnumSelector(Component.translatable("itemalchemy-expansion.config.autoPricingStrategy"),
                         IAExpConfig.AutoPricingStrategy.class, c.autoPricingStrategy)
                 .setDefaultValue(IAExpConfig.AutoPricingStrategy.MIN)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.autoPricingStrategy.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.autoPricingStrategy.tooltip"))
                 .setEnumNameProvider(AUTO_PRICING_STRATEGY_NAMING)
                 .setSaveConsumer(v -> c.autoPricingStrategy = v)
                 .build());
 
         experimental.addEntry(entries
-                .startBooleanToggle(Text.translatable("itemalchemy-expansion.config.autoPricingRespectUpstream"),
+                .startBooleanToggle(Component.translatable("itemalchemy-expansion.config.autoPricingRespectUpstream"),
                         c.autoPricingRespectUpstream)
                 .setDefaultValue(true)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.autoPricingRespectUpstream.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.autoPricingRespectUpstream.tooltip"))
                 .setSaveConsumer(v -> c.autoPricingRespectUpstream = v)
                 .build());
 
         experimental.addEntry(entries
-                .startIntField(Text.translatable("itemalchemy-expansion.config.autoPricingBatchSize"),
+                .startIntField(Component.translatable("itemalchemy-expansion.config.autoPricingBatchSize"),
                         c.autoPricingBatchSize)
                 .setDefaultValue(256)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.autoPricingBatchSize.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.autoPricingBatchSize.tooltip"))
                 .setSaveConsumer(v -> c.autoPricingBatchSize = v)
                 .build());
 
         experimental.addEntry(entries
-                .startIntField(Text.translatable("itemalchemy-expansion.config.autoPricingTickBudgetMs"),
+                .startIntField(Component.translatable("itemalchemy-expansion.config.autoPricingTickBudgetMs"),
                         c.autoPricingTickBudgetMs)
                 .setDefaultValue(8)
-                .setTooltip(Text.translatable("itemalchemy-expansion.config.autoPricingTickBudgetMs.tooltip"))
+                .setTooltip(Component.translatable("itemalchemy-expansion.config.autoPricingTickBudgetMs.tooltip"))
                 .setSaveConsumer(v -> c.autoPricingTickBudgetMs = v)
                 .build());
     }

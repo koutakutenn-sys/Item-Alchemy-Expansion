@@ -1,5 +1,7 @@
 # Item Alchemy Expansion
 
+> 本工作目录已移植至 **Minecraft 26.2 Fabric / Java 25**。环境、构建和回归测试说明见 [PORT_26.2.md](PORT_26.2.md)。下方保留原作者项目说明，其中旧版构建路径不再适用。
+
 [![CurseForge](http://cf.way2muchnoise.eu/title_10292936.svg)](https://www.curseforge.com/minecraft/mc-mods/item-alchemy-expansion)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 

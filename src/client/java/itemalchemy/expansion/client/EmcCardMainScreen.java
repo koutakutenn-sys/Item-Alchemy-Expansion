@@ -2,20 +2,20 @@ package itemalchemy.expansion.client;
 
 import itemalchemy.expansion.client.util.GuiRenderUtil;
 import itemalchemy.expansion.item.EmcCardItem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.pitan76.itemalchemy.ItemAlchemyClient;
 
 /**
  * EMC 卡主菜单：显示卡片价值/存储/总计与玩家 EMC，提供「充入 / 拿取 / 关闭」入口。
  *
  * <p>右键卡时服务端发 S2C 信号，客户端打开本界面。
- * 卡内 EMC 从 {@code mc.player.getMainHandStack()} NBT 实时读取，
+ * 卡内 EMC 从 {@code mc.player.getMainHandItem()} NBT 实时读取，
  * 玩家 EMC 从上游 {@link ItemAlchemyClient#itemAlchemyNbt} 的 {@code team.emc} 读取。</p>
  */
 public class EmcCardMainScreen extends Screen {
@@ -29,18 +29,18 @@ public class EmcCardMainScreen extends Screen {
     }
 
     /** 读取主手卡的实际显示名称（含铁砧重命名），未持卡时回退默认标题 */
-    public static Text getCardName() {
-        MinecraftClient mc = MinecraftClient.getInstance();
+    public static Component getCardName() {
+        Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.player == null)
-            return Text.translatable("itemalchemy-expansion.emc_card.title");
-        ItemStack mainHand = mc.player.getMainHandStack();
+            return Component.translatable("itemalchemy-expansion.emc_card.title");
+        ItemStack mainHand = mc.player.getMainHandItem();
         if (mainHand.isEmpty() || !(mainHand.getItem() instanceof EmcCardItem))
-            return Text.translatable("itemalchemy-expansion.emc_card.title");
-        return mainHand.getName();
+            return Component.translatable("itemalchemy-expansion.emc_card.title");
+        return mainHand.getHoverName();
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         // 不暂停：GUI 与服务端实时通信（充入/拿取），暂停会阻塞服务端包处理
         return false;
     }
@@ -54,35 +54,35 @@ public class EmcCardMainScreen extends Screen {
         int btnWidth = 96;
         int gap = 8;
         // 第一行：充入 / 拿取
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.deposit"),
-                b -> MinecraftClient.getInstance().setScreen(new EmcCardDepositScreen()))
-                .dimensions(centerX - btnWidth - gap / 2, btnY, btnWidth, 20).build());
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.withdraw"),
-                b -> MinecraftClient.getInstance().setScreen(new EmcCardWithdrawScreen()))
-                .dimensions(centerX + gap / 2, btnY, btnWidth, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.deposit"),
+                b -> Minecraft.getInstance().setScreenAndShow(new EmcCardDepositScreen()))
+                .bounds(centerX - btnWidth - gap / 2, btnY, btnWidth, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.withdraw"),
+                b -> Minecraft.getInstance().setScreenAndShow(new EmcCardWithdrawScreen()))
+                .bounds(centerX + gap / 2, btnY, btnWidth, 20).build());
 
         // 第二行：设置 / 记录
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.config"),
-                b -> MinecraftClient.getInstance().setScreen(new EmcCardConfigScreen()))
-                .dimensions(centerX - btnWidth - gap / 2, btnY + 24, btnWidth, 20).build());
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.log"),
-                b -> MinecraftClient.getInstance().setScreen(new EmcCardLogScreen()))
-                .dimensions(centerX + gap / 2, btnY + 24, btnWidth, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.config"),
+                b -> Minecraft.getInstance().setScreenAndShow(new EmcCardConfigScreen()))
+                .bounds(centerX - btnWidth - gap / 2, btnY + 24, btnWidth, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.log"),
+                b -> Minecraft.getInstance().setScreenAndShow(new EmcCardLogScreen()))
+                .bounds(centerX + gap / 2, btnY + 24, btnWidth, 20).build());
 
         // 第三行：关闭
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_card.close"),
-                b -> this.close())
-                .dimensions(centerX - 60, btnY + 48, 120, 20).build());
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_card.close"),
+                b -> this.onClose())
+                .bounds(centerX - 60, btnY + 48, 120, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // The 26.2 GUI manager already extracts the screen background.
 
         int centerX = this.width / 2;
         int panelLeft = centerX - PANEL_WIDTH / 2;
@@ -94,7 +94,7 @@ public class EmcCardMainScreen extends Screen {
         GuiRenderUtil.drawBorder(context, panelLeft, panelTop, PANEL_WIDTH, panelHeight, 0xFF5060A0);
 
         // 标题
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.centeredText(this.font, this.title,
                 centerX, panelTop + PADDING, 0xFFE0E0FF);
 
         // 标题下装饰线
@@ -107,17 +107,17 @@ public class EmcCardMainScreen extends Screen {
         int dataY = lineY + 12;
 
         // 绑卡：额外显示「已绑定：玩家名」并把卡内余额行改名为绑定余额
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         ItemStack mainHand = (mc != null && mc.player != null)
-                ? mc.player.getMainHandStack() : ItemStack.EMPTY;
+                ? mc.player.getMainHandItem() : ItemStack.EMPTY;
         boolean bound = !mainHand.isEmpty()
                 && mainHand.getItem() instanceof EmcCardItem && EmcCardItem.isBound(mainHand);
 
         if (bound) {
             String bindName = resolveBindName(mainHand);
             // 已绑定：<名>。%s 在翻译键内，须传参渲染，否则会显示字面 %s
-            Text bindLabel = Text.translatable("itemalchemy-expansion.emc_card.bind.label", bindName);
-            context.drawText(this.textRenderer, bindLabel, panelLeft + PADDING, dataY, 0xFF40FF80, false);
+            Component bindLabel = Component.translatable("itemalchemy-expansion.emc_card.bind.label", bindName);
+            context.text(this.font, bindLabel, panelLeft + PADDING, dataY, 0xFF40FF80, false);
             // 绑定余额：同步绑定玩家的队 EMC（服务端下发的权威值）
             drawDataRow(context, "itemalchemy-expansion.emc_card.bind_emc",
                     EmcCardItem.formatNumber(cardEmc), panelLeft, dataY + LINE_HEIGHT + 8, 0xFF40A0FF, 0xFF60C0FF);
@@ -134,22 +134,22 @@ public class EmcCardMainScreen extends Screen {
         context.fill(panelLeft + PADDING, divY, panelLeft + PANEL_WIDTH - PADDING, divY + 1, 0xFF405080);
 
         // 合并提示（灰色小字）
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.emc_card.merge_hint"),
+        context.centeredText(this.font,
+                Component.translatable("itemalchemy-expansion.emc_card.merge_hint"),
                 centerX, divY + 8, 0xFF8080A0);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     /** 绘制一行数据：左侧标签（灰），右侧数值（带颜色） */
-    private void drawDataRow(DrawContext context, String labelKey, String valueStr,
+    private void drawDataRow(GuiGraphicsExtractor context, String labelKey, String valueStr,
                              int panelLeft, int y, int labelColor, int valueColor) {
-        Text label = Text.translatable(labelKey);
-        Text value = Text.literal(valueStr);
-        context.drawText(this.textRenderer, label,
+        Component label = Component.translatable(labelKey);
+        Component value = Component.literal(valueStr);
+        context.text(this.font, label,
                 panelLeft + PADDING, y, labelColor, false);
-        context.drawText(this.textRenderer, value,
-                panelLeft + PANEL_WIDTH - PADDING - textRenderer.getWidth(value), y, valueColor, false);
+        context.text(this.font, value,
+                panelLeft + PANEL_WIDTH - PADDING - font.width(value), y, valueColor, false);
     }
 
     /** 解析绑卡玩家名：卡上存的绑定名（离线可读）> 在线玩家档案 > UUID 截断 */
@@ -159,11 +159,11 @@ public class EmcCardMainScreen extends Screen {
         String uuid = EmcCardItem.getBindUuid(card);
         if (uuid == null) return "";
         try {
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc != null && mc.getNetworkHandler() != null) {
-                var entry = mc.getNetworkHandler().getPlayerListEntry(java.util.UUID.fromString(uuid));
+            Minecraft mc = Minecraft.getInstance();
+            if (mc != null && mc.getConnection() != null) {
+                var entry = mc.getConnection().getPlayerInfo(java.util.UUID.fromString(uuid));
                 if (entry != null && entry.getProfile() != null) {
-                    return entry.getProfile().getName();
+                    return entry.getProfile().name();
                 }
             }
         } catch (Throwable t) {
@@ -180,11 +180,11 @@ public class EmcCardMainScreen extends Screen {
     /** 当前玩家 Team EMC（从上游客户端缓存的 team NBT 读取）。 */
     public static long getPlayerEmc() {
         try {
-            NbtCompound root = ItemAlchemyClient.itemAlchemyNbt;
+            CompoundTag root = ItemAlchemyClient.itemAlchemyNbt;
             if (root == null) return 0;
-            NbtCompound team = root.getCompound("team");
+            CompoundTag team = root.getCompoundOrEmpty("team");
             if (team == null) return 0;
-            return team.getLong("emc");
+            return team.getLongOr("emc", 0L);
         } catch (Throwable t) {
             return 0;
         }

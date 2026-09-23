@@ -2,8 +2,8 @@ package itemalchemy.expansion.mixin;
 
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.nbt.ShulkerBoxSupport;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.gui.slot.ExtractSlot;
 import net.pitan76.mcpitanlib.api.entity.Player;
@@ -40,7 +40,7 @@ public abstract class MixinExtractSlot {
     @Inject(method = "canTakeItems(Lnet/pitan76/mcpitanlib/api/entity/Player;)Z", at = @At("HEAD"), cancellable = true)
     private void iaexp$shulkerCanTake(Player player, CallbackInfoReturnable<Boolean> cir) {
         // ExtractSlot extends CompatibleSlot extends Slot；cast 到 Slot 调原版 getStack()
-        ItemStack stack = ((Slot) (Object) this).getStack();
+        ItemStack stack = ((Slot) (Object) this).getItem();
         if (!ShulkerBoxSupport.isShulkerBox(stack)) return;
 
         long required = ShulkerBoxSupport.sumEmc(stack);

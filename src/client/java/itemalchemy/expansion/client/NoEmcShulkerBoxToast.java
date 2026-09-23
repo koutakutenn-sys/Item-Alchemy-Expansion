@@ -1,12 +1,12 @@
 package itemalchemy.expansion.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.toast.Toast;
-import net.minecraft.client.toast.ToastManager;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.toasts.Toast;
+import net.minecraft.client.gui.components.toasts.ToastManager;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 /**
  * 「无法放入潜影盒」Toast 通知（屏幕右上角弹窗）。
@@ -23,7 +23,7 @@ import net.minecraft.util.Identifier;
 public class NoEmcShulkerBoxToast implements Toast {
 
     /** Toast 背景纹理（vanilla 的 toast 纹理） */
-    private static final Identifier TEXTURE = new Identifier("minecraft", "textures/gui/toasts.png");
+    private static final Identifier TEXTURE = Identifier.fromNamespaceAndPath("minecraft", "textures/gui/toasts.png");
 
     /** Toast 持续时长（毫秒） */
     private static final long DURATION_MS = 5000L;
@@ -32,61 +32,58 @@ public class NoEmcShulkerBoxToast implements Toast {
     private final ItemStack noEmcItem;
     /** Toast 创建时间，用于淡入淡出 */
     private long startTime = -1;
+    private Visibility visibility = Visibility.SHOW;
+
+    @Override public Visibility getWantedVisibility() { return visibility; }
+
+    @Override public void update(ToastManager manager, long currentTime) {
+        if (startTime < 0) startTime = currentTime;
+        visibility = currentTime - startTime >= DURATION_MS * manager.getNotificationDisplayTimeMultiplier()
+                ? Visibility.HIDE : Visibility.SHOW;
+    }
 
     public NoEmcShulkerBoxToast(ItemStack noEmcItem) {
         this.noEmcItem = noEmcItem;
     }
 
     @Override
-    public int getWidth() {
+    public int width() {
         return 160;
     }
 
     @Override
-    public int getHeight() {
+    public int height() {
         return 32;
     }
 
     @Override
-    public Visibility draw(DrawContext context, ToastManager manager, long currentTime) {
+    public void extractRenderState(GuiGraphicsExtractor context, net.minecraft.client.gui.Font font, long currentTime) {
         if (startTime == -1) startTime = currentTime;
 
-        // vanilla Toast 标准淡入淡出
-        int fade;
-        long elapsed = currentTime - startTime;
-        if (elapsed < 200) {
-            fade = Math.toIntExact(elapsed * 255 / 200);
-        } else if (elapsed > DURATION_MS - 200) {
-            fade = Math.toIntExact((DURATION_MS - elapsed) * 255 / 200);
-        } else {
-            fade = 255;
-        }
-        if (fade < 0) fade = 0;
-        if (fade > 255) fade = 255;
+        context.blitSprite(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                Identifier.fromNamespaceAndPath("minecraft", "toast/system"), 0, 0, width(), height());
 
-        context.drawTexture(TEXTURE, 0, 0, 0, 0, getWidth(), getHeight());
+        Minecraft client = Minecraft.getInstance();
 
-        MinecraftClient client = MinecraftClient.getInstance();
-
-        Text title = Text.translatable("itemalchemy-expansion.shulker_box.toast.title");
-        context.drawText(client.textRenderer, title, 30, 7, 0xFFFF5555, false);
+        Component title = Component.translatable("itemalchemy-expansion.shulker_box.toast.title");
+        context.text(client.font, title, 30, 7, 0xFFFF5555, false);
 
         // 描述行超宽时省略号截断
-        Text desc = Text.translatable("itemalchemy-expansion.shulker_box.toast.desc",
-                noEmcItem.getName());
+        Component desc = Component.translatable("itemalchemy-expansion.shulker_box.toast.desc",
+                noEmcItem.getHoverName());
         String descStr = desc.getString();
-        int maxW = getWidth() - 35;
-        if (client.textRenderer.getWidth(descStr) > maxW) {
-            while (client.textRenderer.getWidth(descStr + "...") > maxW && descStr.length() > 1) {
+        int maxW = width() - 35;
+        if (client.font.width(descStr) > maxW) {
+            while (client.font.width(descStr + "...") > maxW && descStr.length() > 1) {
                 descStr = descStr.substring(0, descStr.length() - 1);
             }
             descStr = descStr + "...";
         }
-        context.drawText(client.textRenderer, descStr, 30, 18, 0xFFFFFFFF, false);
+        context.text(client.font, descStr, 30, 18, 0xFFFFFFFF, false);
 
-        context.drawItem(noEmcItem, 8, 8);
+        context.item(noEmcItem, 8, 8);
 
-        return elapsed >= DURATION_MS ? Visibility.HIDE : Visibility.SHOW;
+        
     }
 
     // ===== 静态触发入口（被 MixinRegisterSlot 反射调用） =====
@@ -104,19 +101,19 @@ public class NoEmcShulkerBoxToast implements Toast {
      */
     public static void show(ItemStack noEmcItem) {
         if (noEmcItem == null || noEmcItem.isEmpty()) return;
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) return;
 
         long now = System.currentTimeMillis();
         // 500ms 内同物品不重复弹出
-        if (now - lastShownTime < 500 && ItemStack.areEqual(lastShownItem, noEmcItem)) {
+        if (now - lastShownTime < 500 && ItemStack.matches(lastShownItem, noEmcItem)) {
             return;
         }
         lastShownTime = now;
         lastShownItem = noEmcItem.copy();
 
         try {
-            client.getToastManager().add(new NoEmcShulkerBoxToast(noEmcItem));
+            client.gui.toastManager().addToast(new NoEmcShulkerBoxToast(noEmcItem));
         } catch (Throwable ignored) {
             // 防御性：Toast 显示失败不影响游戏逻辑
         }

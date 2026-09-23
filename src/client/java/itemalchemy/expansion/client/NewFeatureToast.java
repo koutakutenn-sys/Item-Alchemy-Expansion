@@ -1,11 +1,11 @@
 package itemalchemy.expansion.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.toast.Toast;
-import net.minecraft.client.toast.ToastManager;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.toasts.Toast;
+import net.minecraft.client.gui.components.toasts.ToastManager;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 /**
  * 「新功能」升级提醒 Toast（屏幕右上角弹窗）。
@@ -23,74 +23,67 @@ import net.minecraft.util.Identifier;
 public class NewFeatureToast implements Toast {
 
     /** Toast 背景纹理（vanilla 的 toast 纹理） */
-    private static final Identifier TEXTURE = new Identifier("minecraft", "textures/gui/toasts.png");
+    private static final Identifier TEXTURE = Identifier.fromNamespaceAndPath("minecraft", "textures/gui/toasts.png");
 
     /** 经验瓶纹理（作为「新功能」图标） */
     private static final Identifier ICON_TEXTURE =
-            new Identifier("minecraft", "textures/item/experience_bottle.png");
+            Identifier.fromNamespaceAndPath("minecraft", "textures/item/experience_bottle.png");
 
     /** Toast 持续时长（毫秒），比一般 toast 长，确保玩家读完 */
     private static final long DURATION_MS = 8000L;
 
     /** Toast 创建时间，用于淡入淡出 */
     private long startTime = -1;
+    private Visibility visibility = Visibility.SHOW;
+
+    @Override public Visibility getWantedVisibility() { return visibility; }
+
+    @Override public void update(ToastManager manager, long currentTime) {
+        if (startTime < 0) startTime = currentTime;
+        visibility = currentTime - startTime >= DURATION_MS * manager.getNotificationDisplayTimeMultiplier()
+                ? Visibility.HIDE : Visibility.SHOW;
+    }
 
     @Override
-    public int getWidth() {
+    public int width() {
         return 240;
     }
 
     @Override
-    public int getHeight() {
+    public int height() {
         return 44;
     }
 
     @Override
-    public Visibility draw(DrawContext context, ToastManager manager, long currentTime) {
+    public void extractRenderState(GuiGraphicsExtractor context, net.minecraft.client.gui.Font font, long currentTime) {
         if (startTime == -1) startTime = currentTime;
 
-        // vanilla Toast 标准淡入淡出
-        int fade;
-        long elapsed = currentTime - startTime;
-        if (elapsed < 200) {
-            fade = Math.toIntExact(elapsed * 255 / 200);
-        } else if (elapsed > DURATION_MS - 200) {
-            fade = Math.toIntExact((DURATION_MS - elapsed) * 255 / 200);
-        } else {
-            fade = 255;
-        }
-        if (fade < 0) fade = 0;
-        if (fade > 255) fade = 255;
+        context.blitSprite(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                Identifier.fromNamespaceAndPath("minecraft", "toast/system"), 0, 0, width(), height());
 
-        // vanilla toast 纹理单格是 160x32，需 240x44，分块绘制自适应宽度
-        context.drawTexture(TEXTURE, 0, 0, 0, 0, 160, 32);
-        context.drawTexture(TEXTURE, 160, 0, 160, 0, getWidth() - 160, 32);
-        context.drawTexture(TEXTURE, 0, 32, 0, 0, 160, getHeight() - 32);
-        context.drawTexture(TEXTURE, 160, 32, 160, 0, getWidth() - 160, getHeight() - 32);
+        Minecraft client = Minecraft.getInstance();
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Component title = Component.translatable("itemalchemy-expansion.new_feature_toast.title");
+        context.text(client.font, title, 30, 7, 0xFFFFAA00, false);
 
-        Text title = Text.translatable("itemalchemy-expansion.new_feature_toast.title");
-        context.drawText(client.textRenderer, title, 30, 7, 0xFFFFAA00, false);
-
-        Text desc1 = Text.translatable("itemalchemy-expansion.new_feature_toast.desc1");
-        context.drawText(client.textRenderer, desc1, 30, 20, 0xFFFFFFFF, false);
+        Component desc1 = Component.translatable("itemalchemy-expansion.new_feature_toast.desc1");
+        context.text(client.font, desc1, 30, 20, 0xFFFFFFFF, false);
 
         // 描述行 2 超宽时省略号截断以紧凑显示
-        Text desc2 = Text.translatable("itemalchemy-expansion.new_feature_toast.desc2");
+        Component desc2 = Component.translatable("itemalchemy-expansion.new_feature_toast.desc2");
         String desc2Str = desc2.getString();
-        int maxW = getWidth() - 35;
-        if (client.textRenderer.getWidth(desc2Str) > maxW) {
-            while (client.textRenderer.getWidth(desc2Str + "...") > maxW && desc2Str.length() > 1) {
+        int maxW = width() - 35;
+        if (client.font.width(desc2Str) > maxW) {
+            while (client.font.width(desc2Str + "...") > maxW && desc2Str.length() > 1) {
                 desc2Str = desc2Str.substring(0, desc2Str.length() - 1);
             }
             desc2Str = desc2Str + "...";
         }
-        context.drawText(client.textRenderer, desc2Str, 30, 31, 0xFFA0A0A0, false);
+        context.text(client.font, desc2Str, 30, 31, 0xFFA0A0A0, false);
 
-        context.drawTexture(ICON_TEXTURE, 8, 12, 0, 0, 16, 16, 16, 16);
+        context.item(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EXPERIENCE_BOTTLE), 8, 12);
 
-        return elapsed >= DURATION_MS ? Visibility.HIDE : Visibility.SHOW;
+        
     }
 
     /**
@@ -99,10 +92,10 @@ public class NewFeatureToast implements Toast {
      * <p>由 {@code SetEmcClientNetwork} 在收到 {@code new_feature_toast} S2C 包后调用。</p>
      */
     public static void show() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) return;
         try {
-            client.getToastManager().add(new NewFeatureToast());
+            client.gui.toastManager().addToast(new NewFeatureToast());
         } catch (Throwable ignored) {
             // 防御性：Toast 显示失败不影响游戏逻辑
         }

@@ -1,14 +1,14 @@
 package itemalchemy.expansion.block;
 
 import itemalchemy.expansion.gui.CardForgeScreenHandler;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.core.BlockPos;
 import net.pitan76.mcpitanlib.api.event.block.TileCreateEvent;
 import net.pitan76.mcpitanlib.api.event.container.factory.DisplayNameArgs;
 import net.pitan76.mcpitanlib.api.event.nbt.ReadNbtArgs;
@@ -21,9 +21,9 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * 制卡台 BlockEntity：持有两张 EMC 卡槽，实现 {@link SimpleScreenHandlerFactory} 供右键打开 GUI。
- * 卡槽持久化到 NBT；配置操作（私有/公有、关联、合并）由 ScreenHandler 通过 C2S 触发。
+ * 卡槽持久化到 NBT；配置操作（私有/公有、关联、合并）由 AbstractContainerMenu 通过 C2S 触发。
  */
-public class CardForgeBlockEntity extends CompatBlockEntity implements Inventory, SimpleScreenHandlerFactory {
+public class CardForgeBlockEntity extends CompatBlockEntity implements Container, SimpleScreenHandlerFactory {
 
     /** 卡槽数量 */
     public static final int SLOT_COUNT = 2;
@@ -45,10 +45,10 @@ public class CardForgeBlockEntity extends CompatBlockEntity implements Inventory
         }
     }
 
-    // ==================== Inventory ====================
+    // ==================== Container ====================
 
     @Override
-    public int size() {
+    public int getContainerSize() {
         return SLOT_COUNT;
     }
 
@@ -61,70 +61,70 @@ public class CardForgeBlockEntity extends CompatBlockEntity implements Inventory
     }
 
     @Override
-    public ItemStack getStack(int slot) {
+    public ItemStack getItem(int slot) {
         if (slot < 0 || slot >= SLOT_COUNT) return ItemStack.EMPTY;
         return cardSlots[slot];
     }
 
     @Override
-    public ItemStack removeStack(int slot, int amount) {
+    public ItemStack removeItem(int slot, int amount) {
         if (slot < 0 || slot >= SLOT_COUNT) return ItemStack.EMPTY;
         ItemStack cur = cardSlots[slot];
         if (cur.isEmpty()) return ItemStack.EMPTY;
         ItemStack result = cur.split(amount);
-        markDirty();
+        setChanged();
         return result;
     }
 
     @Override
-    public ItemStack removeStack(int slot) {
+    public ItemStack removeItemNoUpdate(int slot) {
         if (slot < 0 || slot >= SLOT_COUNT) return ItemStack.EMPTY;
         ItemStack cur = cardSlots[slot];
         cardSlots[slot] = ItemStack.EMPTY;
-        markDirty();
+        setChanged();
         return cur;
     }
 
     @Override
-    public void setStack(int slot, ItemStack stack) {
+    public void setItem(int slot, ItemStack stack) {
         if (slot < 0 || slot >= SLOT_COUNT) return;
         cardSlots[slot] = stack;
-        if (!stack.isEmpty() && stack.getCount() > getMaxCountPerStack()) {
-            stack.setCount(getMaxCountPerStack());
+        if (!stack.isEmpty() && stack.getCount() > getMaxStackSize()) {
+            stack.setCount(getMaxStackSize());
         }
-        markDirty();
+        setChanged();
     }
 
     @Override
-    public boolean canPlayerUse(PlayerEntity player) {
-        if (world == null) return false;
-        BlockPos pos = getPos();
-        return player.squaredDistanceTo(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
+    public boolean stillValid(Player player) {
+        if (level == null) return false;
+        BlockPos pos = getBlockPos();
+        return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
     }
 
     @Override
-    public void clear() {
+    public void clearContent() {
         for (int i = 0; i < SLOT_COUNT; i++) {
             cardSlots[i] = ItemStack.EMPTY;
         }
-        markDirty();
+        setChanged();
     }
 
     // ==================== NBT 持久化 ====================
 
     @Override
     public void writeNbt(WriteNbtArgs args) {
-        NbtCompound nbt = args.getNbt();
+        CompoundTag nbt = args.getNbt();
         for (int i = 0; i < SLOT_COUNT; i++) {
-            nbt.put("slot_" + i, cardSlots[i].writeNbt(new NbtCompound()));
+            nbt.put("slot_" + i, itemalchemy.expansion.compat.port.StackData.writeNbt(cardSlots[i], new CompoundTag()));
         }
     }
 
     @Override
     public void readNbt(ReadNbtArgs args) {
-        NbtCompound nbt = args.getNbt();
+        CompoundTag nbt = args.getNbt();
         for (int i = 0; i < SLOT_COUNT; i++) {
-            cardSlots[i] = ItemStack.fromNbt(nbt.getCompound("slot_" + i));
+            cardSlots[i] = itemalchemy.expansion.compat.port.StackData.fromNbt(nbt.getCompound("slot_" + i));
         }
     }
 
@@ -132,12 +132,12 @@ public class CardForgeBlockEntity extends CompatBlockEntity implements Inventory
 
     @Nullable
     @Override
-    public ScreenHandler createMenu(CreateMenuEvent e) {
+    public AbstractContainerMenu createMenu(CreateMenuEvent e) {
         return new CardForgeScreenHandler(e, this);
     }
 
     @Override
-    public net.minecraft.text.Text getDisplayName(DisplayNameArgs args) {
+    public net.minecraft.network.chat.Component getDisplayName(DisplayNameArgs args) {
         return TextUtil.translatable("block.itemalchemy-expansion.card_forge");
     }
 }

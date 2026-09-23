@@ -1,11 +1,10 @@
 package itemalchemy.expansion.item;
 
 import itemalchemy.expansion.ItemAlchemyExpansion;
-import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.util.Identifier;
-import net.pitan76.itemalchemy.item.ItemGroups;
+import net.minecraft.world.item.Item;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
+import net.minecraft.resources.Identifier;
 import net.pitan76.mcpitanlib.api.item.v2.CompatibleItemSettings;
 import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
 import net.pitan76.mcpitanlib.api.util.CompatRarity;
@@ -25,13 +24,12 @@ public final class IAExpItems {
     public static EmcCardItem EMC_CARD;
 
     public static void init() {
-        EMC_CARD = Registry.register(Registries.ITEM,
-                new Identifier(ItemAlchemyExpansion.MOD_ID, "emc_card"),
+        EMC_CARD = Registry.register(BuiltInRegistries.ITEM,
+                Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "emc_card"),
                 new EmcCardItem(CompatibleItemSettings.of(
                                 CompatIdentifier.of(ItemAlchemyExpansion.MOD_ID, "emc_card"))
                         .maxCount(1)
-                        .rarity(CompatRarity.UNCOMMON)
-                        .addGroup(ItemGroups.ITEM_ALCHEMY)));
+                        .rarity(CompatRarity.UNCOMMON)));
 
         ItemAlchemyExpansion.LOGGER.info("[IAExp] items registered: emc_card");
     }

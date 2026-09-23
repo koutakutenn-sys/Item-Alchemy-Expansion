@@ -5,13 +5,13 @@ import itemalchemy.expansion.client.util.GuiRenderUtil;
 import itemalchemy.expansion.nbt.ItemVariantKey;
 import itemalchemy.expansion.network.AutoEmcStore;
 import itemalchemy.expansion.network.PreciseEmcStore;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,7 +33,7 @@ import java.util.Map;
  *
  * <p>实现说明：用自包含的滚动列表（{@code enableScissor} + {@code mouseScrolled}）而非
  * {@code EntryListWidget}，避免对 Minecraft 原版类字段/方法签名的依赖（本项目无 refmap）。
- * 覆写 {@link #shouldPause()} 返回 true，与 {@link SetEmcScreen} 一致。</p>
+ * 覆写 {@link #isPauseScreen()} 返回 true，与 {@link SetEmcScreen} 一致。</p>
  */
 public class RepriceConfirmScreen extends Screen {
 
@@ -59,7 +59,7 @@ public class RepriceConfirmScreen extends Screen {
     private int panelX, panelY, panelW, panelH;
 
     public RepriceConfirmScreen(List<RepriceEntry> entries) {
-        super(Text.translatable("itemalchemy-expansion.reprice.title"));
+        super(Component.translatable("itemalchemy-expansion.reprice.title"));
         this.entries = groupByItemId(entries);
     }
 
@@ -149,7 +149,7 @@ public class RepriceConfirmScreen extends Screen {
         public String displayName() {
             try {
                 if (!stack.isEmpty()) {
-                    String n = stack.getName().getString();
+                    String n = stack.getHoverName().getString();
                     if (n != null && !n.isEmpty()) return n;
                 }
             } catch (Throwable ignore) {}
@@ -160,7 +160,7 @@ public class RepriceConfirmScreen extends Screen {
     // ============ 生命周期 ============
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return true;
     }
 
@@ -173,20 +173,20 @@ public class RepriceConfirmScreen extends Screen {
         int totalW = btnW * 3 + gap * 2;
         int startX = panelX + (panelW - totalW) / 2;
 
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.reprice.recompute_all"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.reprice.recompute_all"),
                 b -> setAllRecompute(true))
-                .dimensions(startX, btnY, btnW, 20).build());
+                .bounds(startX, btnY, btnW, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.reprice.keep_all"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.reprice.keep_all"),
                 b -> setAllRecompute(false))
-                .dimensions(startX + btnW + gap, btnY, btnW, 20).build());
+                .bounds(startX + btnW + gap, btnY, btnW, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.reprice.confirm_selection"),
+        addRenderableWidget(Button.builder(
+                Component.translatable("itemalchemy-expansion.reprice.confirm_selection"),
                 b -> onConfirm())
-                .dimensions(startX + (btnW + gap) * 2, btnY, btnW, 20).build());
+                .bounds(startX + (btnW + gap) * 2, btnY, btnW, 20).build());
     }
 
     /** 按当前窗口尺寸计算面板与列表几何（夹紧到屏幕内） */
@@ -201,24 +201,26 @@ public class RepriceConfirmScreen extends Screen {
 
     /** 点击列表行切换该行勾选状态 */
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x(), mouseY = event.y();
+        int button = event.button();
         if (button == 0 && hitListRow(mouseX, mouseY) >= 0) {
             int idx = hitListRow(mouseX, mouseY);
             entries.get(idx).recompute = !entries.get(idx).recompute;
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     /** 滚轮滚动列表 */
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double amount) {
         int listTop = panelY + LIST_TOP_OFFSET;
         int listBottom = panelY + panelH - LIST_BOTTOM_OFFSET;
         int listHeight = listBottom - listTop;
         int totalHeight = entries.size() * ROW_H;
         int maxScroll = Math.max(0, totalHeight - listHeight);
-        if (maxScroll <= 0) return super.mouseScrolled(mouseX, mouseY, amount);
+        if (maxScroll <= 0) return super.mouseScrolled(mouseX, mouseY, horizontal, amount);
         scrollOffset -= (int) (amount * ROW_H);
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
         return true;
@@ -260,14 +262,14 @@ public class RepriceConfirmScreen extends Screen {
             }
         }
         SetEmcClientNetwork.sendRepriceSelective(generalIds, preciseVkStrs);
-        this.close();
+        this.onClose();
     }
 
     // ============ 渲染 ============
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // The 26.2 GUI manager already extracts the screen background.
 
         int listTop = panelY + LIST_TOP_OFFSET;
         int listBottom = panelY + panelH - LIST_BOTTOM_OFFSET;
@@ -278,10 +280,10 @@ public class RepriceConfirmScreen extends Screen {
         context.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xC0101010);
         GuiRenderUtil.drawBorder(context, panelX, panelY, panelW, panelH, 0xFF404040);
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.centeredText(this.font, this.title,
                 this.width / 2, panelY + 10, 0xFFFFFF);
-        context.drawText(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.reprice.selective_desc"),
+        context.text(this.font,
+                Component.translatable("itemalchemy-expansion.reprice.selective_desc"),
                 listLeft, panelY + 26, 0xA0A0A0, false);
 
         context.fill(listLeft, listTop, listRight, listBottom, 0x60000000);
@@ -289,8 +291,8 @@ public class RepriceConfirmScreen extends Screen {
 
         if (entries.isEmpty()) {
             // 防御：服务端无候选时不弹窗，此处兜底显示
-            context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.reprice.empty"),
+            context.centeredText(this.font,
+                    Component.translatable("itemalchemy-expansion.reprice.empty"),
                     (listLeft + listRight) / 2, (listTop + listBottom) / 2 - 4, 0xA0A0A0);
         } else {
             // 裁剪到列表区域
@@ -305,42 +307,42 @@ public class RepriceConfirmScreen extends Screen {
             drawScrollbar(context, listRight, listTop, listBottom);
         }
 
-        context.drawText(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.reprice.hint2"),
+        context.text(this.font,
+                Component.translatable("itemalchemy-expansion.reprice.hint2"),
                 listLeft, panelY + panelH - 16, 0x707070, false);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
-    private void drawRow(DrawContext context, RepriceEntry e, int listLeft, int listRight, int rowY, boolean hovered) {
+    private void drawRow(GuiGraphicsExtractor context, RepriceEntry e, int listLeft, int listRight, int rowY, boolean hovered) {
         int textY = rowY + (ROW_H - 8) / 2;
         if (hovered) {
             context.fill(listLeft + 1, rowY, listRight - 1, rowY + ROW_H, 0x30FFFFFF);
         }
         drawCheckbox(context, listLeft + 2, rowY + (ROW_H - CHECKBOX) / 2, e.recompute);
-        context.drawItem(e.stack, listLeft + 20, rowY + (ROW_H - 16) / 2);
+        context.item(e.stack, listLeft + 20, rowY + (ROW_H - 16) / 2);
         // 名称截断到 16 字符
         String name = e.displayName();
         if (name.length() > 16) name = name.substring(0, 15) + "...";
-        context.drawText(this.textRenderer, name, listLeft + 42, textY, 0xFFFFFF, false);
+        context.text(this.font, name, listLeft + 42, textY, 0xFFFFFF, false);
         if (e.isPrecise()) {
-            int nameW = this.textRenderer.getWidth(name);
+            int nameW = this.font.width(name);
             int tagX = listLeft + 42 + nameW + 6;
-            Text precise = Text.translatable("itemalchemy-expansion.reprice.layer_precise");
-            context.drawText(this.textRenderer, precise, tagX, textY, 0x55FFFF, false);
+            Component precise = Component.translatable("itemalchemy-expansion.reprice.layer_precise");
+            context.text(this.font, precise, tagX, textY, 0x55FFFF, false);
             // 同 ID 多变体时标注数量
             if (e.variantCount > 1) {
-                int preciseW = this.textRenderer.getWidth(precise);
-                Text count = Text.translatable("itemalchemy-expansion.reprice.variant_count",
+                int preciseW = this.font.width(precise);
+                Component count = Component.translatable("itemalchemy-expansion.reprice.variant_count",
                         e.variantCount);
-                context.drawText(this.textRenderer, count, tagX + preciseW + 4, textY, 0xFFAA00, false);
+                context.text(this.font, count, tagX + preciseW + 4, textY, 0xFFAA00, false);
             }
         }
         drawEmc(context, e, listRight, textY);
     }
 
     /** 渲染复选框：勾选=绿底白心，未勾选=暗底空心 */
-    private static void drawCheckbox(DrawContext context, int x, int y, boolean checked) {
+    private static void drawCheckbox(GuiGraphicsExtractor context, int x, int y, boolean checked) {
         int fill = checked ? 0xFF208020 : 0xFF1A1A1A;
         int border = checked ? 0xFF30C030 : 0xFF707070;
         context.fill(x, y, x + CHECKBOX, y + CHECKBOX, fill);
@@ -352,29 +354,29 @@ public class RepriceConfirmScreen extends Screen {
     }
 
     /** 右对齐渲染「旧: X」与可选「→ 新: Y」；新值来自客户端同步的 {@link AutoEmcStore} */
-    private void drawEmc(DrawContext context, RepriceEntry e, int rightX, int y) {
-        Text oldT = Text.translatable("itemalchemy-expansion.reprice.old_emc", String.valueOf(e.oldEmc));
+    private void drawEmc(GuiGraphicsExtractor context, RepriceEntry e, int rightX, int y) {
+        Component oldT = Component.translatable("itemalchemy-expansion.reprice.old_emc", String.valueOf(e.oldEmc));
         Long newEmc = e.isPrecise() ? AutoEmcStore.getPrecise(e.vkStr) : AutoEmcStore.getGeneral(e.itemId);
-        Text newT = newEmc != null
-                ? Text.translatable("itemalchemy-expansion.reprice.new_emc", String.valueOf(newEmc))
+        Component newT = newEmc != null
+                ? Component.translatable("itemalchemy-expansion.reprice.new_emc", String.valueOf(newEmc))
                 : null;
 
-        int oldW = this.textRenderer.getWidth(oldT);
-        int sepW = this.textRenderer.getWidth("  ");
-        int newW = newT == null ? 0 : this.textRenderer.getWidth(newT);
+        int oldW = this.font.width(oldT);
+        int sepW = this.font.width("  ");
+        int newW = newT == null ? 0 : this.font.width(newT);
         int groupW = oldW + (newT == null ? 0 : sepW + newW);
         int startX = rightX - groupW - 4;
 
         // 旧值颜色：勾选=黄色（将被重算），未勾选=灰色（保留）
         int oldColor = e.recompute ? 0xFFFFE040 : 0xFFA0A0A0;
-        context.drawText(this.textRenderer, oldT, startX, y, oldColor, false);
+        context.text(this.font, oldT, startX, y, oldColor, false);
         if (newT != null) {
-            context.drawText(this.textRenderer, newT, startX + oldW + sepW, y, 0xFF40E060, false);
+            context.text(this.font, newT, startX + oldW + sepW, y, 0xFF40E060, false);
         }
     }
 
     /** 渲染滚动条（仅在内容超出列表高度时） */
-    private void drawScrollbar(DrawContext context, int listRight, int listTop, int listBottom) {
+    private void drawScrollbar(GuiGraphicsExtractor context, int listRight, int listTop, int listBottom) {
         int listHeight = listBottom - listTop;
         int totalHeight = entries.size() * ROW_H;
         int maxScroll = Math.max(0, totalHeight - listHeight);
@@ -416,8 +418,8 @@ public class RepriceConfirmScreen extends Screen {
             }
             // 回退：创建不带 NBT 的 ItemStack
             Identifier id = Identifier.tryParse(itemId);
-            if (id != null && Registries.ITEM.containsId(id)) {
-                return new ItemStack(Registries.ITEM.get(id));
+            if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
+                return new ItemStack(BuiltInRegistries.ITEM.getValue(id));
             }
         } catch (Throwable ignore) {}
         return ItemStack.EMPTY;
