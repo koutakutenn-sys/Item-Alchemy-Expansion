@@ -1,14 +1,6 @@
-# Item Alchemy Expansion — Minecraft 26.2 Fabric (unofficial port)
+# Item Alchemy Expansion — Minecraft 26.2 Fabric Port
 
-> **This is an unofficial port.**
-> It is a **Minecraft 26.2 + Fabric port** of [Item-Alchemy-Expansion](https://github.com/luckfun233/Item-Alchemy-Expansion)
-> by the original author **luckfun233**, based on the original 1.2.0 sources.
-> It is **not published or endorsed by the original author**. Please do not report 26.2 port issues upstream.
->
-> 26.2 port maintainer: **koutakutenn-sys**
->
-> Original project (1.20.1): https://github.com/luckfun233/Item-Alchemy-Expansion
-> CurseForge (original): https://www.curseforge.com/minecraft/mc-mods/item-alchemy-expansion
+> Minecraft 26.2 Fabric port of Item Alchemy Expansion, maintained by **koutakutenn-sys**. Based on the original 1.2.0 release by **luckfun233**.
 
 [![Releases](https://img.shields.io/badge/download-releases-blue.svg)](https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -21,8 +13,8 @@ An addon for [Item Alchemy](https://github.com/Pitan76/item-alchemy) that adds N
 
 | Version | Where |
 | --- | --- |
-| Minecraft **26.2** (this port) | [Releases](https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/releases) |
-| Minecraft 1.20.1 (original) | [Original project](https://github.com/luckfun233/Item-Alchemy-Expansion) |
+| Minecraft 26.2 | [Releases](https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/releases) |
+| 1.20.1 | [upstream project](https://github.com/luckfun233/Item-Alchemy-Expansion) |
 
 Drop `itemalchemy-expansion-*.jar` into your instance `mods` folder. Do not install `*-sources.jar` or `*-native-dev.jar`.
 
@@ -91,24 +83,21 @@ CI is currently disabled (the build is not reproducible without the uncommitted 
 
 ## Reporting issues
 
-- **Report 26.2 port issues in this repository**: [koutakutenn-sys/Item-Alchemy-Expansion/issues](https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/issues)
-- Include the full log (`logs/latest.log` or a file from `crash-reports/`) plus your Minecraft, Fabric Loader, Item Alchemy and MCPitanLib versions
-- **Do not report 26.2 port issues to the original author's repository**; for 1.20.1 issues use the [original issue tracker](https://github.com/luckfun233/Item-Alchemy-Expansion/issues)
+- 26.2 port issues → [this repository](https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/issues)
+- 1.20.1 upstream issues → [upstream repository](https://github.com/luckfun233/Item-Alchemy-Expansion/issues)
 
 ## About this port
 
-This is a compatibility port of the original, complete 1.2.0 sources — not a trimmed-down rewrite. See
-[PORT_26.2.md](PORT_26.2.md) for environment, build steps, 26.2 API notes and the regression test scope.
+Port of the original, complete 1.2.0 sources. See [PORT_26.2.md](PORT_26.2.md) for environment, build steps, 26.2 API notes and the regression test scope.
 
 ## Credits
 
-- **luckfun233** — author of [Item-Alchemy-Expansion](https://github.com/luckfun233/Item-Alchemy-Expansion); this repository is an unofficial Minecraft 26.2 port of that project
+- **luckfun233** — original author
 - **Pitan** — author of [item-alchemy](https://github.com/Pitan76/item-alchemy), the upstream mod this expands on
 - **MisterPeModder** — author of [ShulkerBoxTooltip](https://github.com/MisterPeModder/ShulkerBoxTooltip); its preview interaction design inspired the built-in shulker preview
 - **mezz** — author of [JustEnoughItems](https://github.com/mezz/JustEnoughItems); its recipe scanning and ingredient normalization approach informed the auto-pricing implementation
-- **koutakutenn-sys** — Minecraft 26.2 port maintainer (unofficial)
+- **koutakutenn-sys** — 26.2 port maintainer
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Original code is copyright **luckfun233**; the 26.2 port is licensed under MIT as well.
-This repository is an **unofficial port** and is not affiliated with or endorsed by the original author.
+MIT — see [LICENSE](LICENSE).

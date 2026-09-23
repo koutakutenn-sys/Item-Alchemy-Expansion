@@ -1,12 +1,11 @@
 # Minecraft 26.2 Fabric 移植版
 
-这是基于原作者完整 1.2.0 源码的非官方兼容移植，不是早期精简 alpha。
-原始仓库（原作者 luckfun233）：https://github.com/luckfun233/Item-Alchemy-Expansion
-源码基线：`10f429f52435c7f95590b467a597ec22aa8e0512`。
+基于原作者 luckfun233 的 1.2.0 完整源码移植，非精简重写。
+原始仓库：https://github.com/luckfun233/Item-Alchemy-Expansion
+源码基线：`10f429f52435c7f95590b467a597ec22aa8e0512`
 26.2 移植维护者：koutakutenn-sys
 
 可直接安装的成品 jar 见 [Releases](https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/releases)。
-本仓库是**非官方移植**，与原作者无隶属或背书关系；26.2 相关问题请反馈到本仓库，不要提交到上游。
 
 ## 运行环境
 
@@ -87,6 +86,6 @@ MCPitanLib 对合并后的目标类做运行时转换。Minecraft 和 MCPitanLib
 
 ## 问题反馈
 
-- **26.2 移植版**：https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/issues
-- 崩溃请附完整日志，并写明 Minecraft / Fabric Loader / Item Alchemy / MCPitanLib 版本
-- **不要把 26.2 移植相关的问题提交到原作者仓库**；1.20.1 原版问题请去[原项目 issue 区](https://github.com/luckfun233/Item-Alchemy-Expansion/issues)
+- 26.2 port issues → https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/issues
+- 1.20.1 upstream issues → https://github.com/luckfun233/Item-Alchemy-Expansion/issues
+- 崩溃请附完整日志（`logs/latest.log` 或 `crash-reports/` 内的文件），并写明 Minecraft / Fabric Loader / Item Alchemy / MCPitanLib 版本
