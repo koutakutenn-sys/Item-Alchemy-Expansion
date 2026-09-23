@@ -16,14 +16,15 @@
 - MCPitanLib **4.0.7-fix.1-26.2-fabric**，含 littleintermediaryfallback **1.0.2.262**
 - 可选配置界面：Cloth Config 26.2.155、Mod Menu 20.0.2
 
-不要为了满足旧报错替换 MCPitanLib：本移植已允许上述修复版版本号。
-依赖于 Item Alchemy 1.3.9 的运行时兼容桥；不声明兼容未来更换命名体系的 Item Alchemy 版本。
+MCPitanLib 必须是 `4.0.7-fix.1` 这个构建：Fabric 的版本比较规则认为它低于正式版 `4.0.7`，装错会报依赖不满足。
+本移植只针对 Item Alchemy 1.3.9 验证。
 
 ## 使用
 
 关闭游戏，备份存档，把 `itemalchemy-expansion-1.2.0+26.2.port.1.jar` 放入目标实例的 `mods`。
 不要同时保留另一个 Item Alchemy Expansion JAR，也不要安装 `*-sources.jar` 或 `*-native-dev.jar`。
 `libs/` 下的依赖 jar 与 `*-native-dev.jar` 都是**构建用**的，不要放进 `mods/`。
+首次使用建议先在测试世界验证，不要直接拿唯一存档试。
 
 ## 构建和测试
 
@@ -49,13 +50,13 @@
 | `cloth-config-26.2.155.jar` | Cloth Config（可选配置界面） | 否 |
 | `modmenu-20.0.2.jar` | Mod Menu（可选配置入口） | 否 |
 
-尝试改回标准 Maven 坐标时受阻：`maven.pitan76.net` 在当前网络返回 **403（Cloudflare 拦截）**，坐标可用性无法验证，
-因此暂不改动构建方式。CI 也因同样原因未启用（见 `.github/workflows/build.yml.disabled`）。
+`prepareItemAlchemyCompileView` 会用上面的 Item Alchemy jar 生成仅编译使用的 native-dev 视图，不需要手动准备。
+CI 当前未启用（依赖未提交，无法在 CI 中复现构建），原因与恢复步骤见 [`.github/workflows/build.yml.disabled`](.github/workflows/build.yml.disabled)。
 
-`prepareItemAlchemyCompileView` 会根据原始 Item Alchemy JAR 自动生成仅编译使用的 native-dev 视图。
-普通代码采用 26.2 官方类名；`build-tools/LegacyMixinBridge.java` 只处理注入旧版 Item Alchemy 的 Mixin，匹配其转换前的描述符。
-MCPitanLib 对合并后的目标类做运行时转换。Minecraft 和 MCPitanLib 自身的 Mixin 不使用该处理。
-此机制不改写用户安装的依赖 JAR。
+### 构建机制
+
+- `build-tools/LegacyMixinBridge.java`：Item Alchemy 1.3.9 的类仍是旧命名空间，且它的运行时转换发生在 Mixin 注入之后；该工具只对注入该依赖的 Mixin 做前置处理，不改写游戏或依赖 JAR。
+- 其余代码使用 26.2 官方类名，MCPitanLib 负责运行时转换，Minecraft 与 MCPitanLib 自身的 Mixin 不经过上述处理。
 
 ## 已覆盖的回归项目
 
@@ -79,10 +80,7 @@ MCPitanLib 对合并后的目标类做运行时转换。Minecraft 和 MCPitanLib
 - `Screen.render` 被 26.2 的 `extractRenderState` 取代，屏幕背景由渲染管线统一绘制，
   自定义界面不要再次调用背景绘制（会因重复模糊而崩溃）。
 
-这些是隔离环境回归测试，不等于已验证整个大型整合包、多人服务器长期运行或旧版本存档升级。
-没有针对 TaCZ 非官方分支进行整合测试，也不改变之前对该分支的安全审计结论。
-上游兼容桥可能输出旧类名的 Mixin 类信息警告；测试以实际功能断言和退出结果为准。
-首次使用仍建议创建测试世界，不直接拿唯一存档测试。
+以上为回归测试覆盖范围；大型整合包、多人服务器长期运行与旧存档升级未在此验证。
 
 ## 问题反馈
 
