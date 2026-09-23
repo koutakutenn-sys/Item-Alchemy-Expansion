@@ -101,3 +101,4 @@ Port of the original, complete 1.2.0 sources. See [PORT_26.2.md](PORT_26.2.md) f
 ## License
 
 MIT — see [LICENSE](LICENSE).
+26.2 port additions © 2026 koutakutenn-sys, licensed under MIT.

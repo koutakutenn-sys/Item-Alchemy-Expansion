@@ -89,3 +89,8 @@ MCPitanLib 对合并后的目标类做运行时转换。Minecraft 和 MCPitanLib
 - 26.2 port issues → https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/issues
 - 1.20.1 upstream issues → https://github.com/luckfun233/Item-Alchemy-Expansion/issues
 - 崩溃请附完整日志（`logs/latest.log` 或 `crash-reports/` 内的文件），并写明 Minecraft / Fabric Loader / Item Alchemy / MCPitanLib 版本
+
+## 许可
+
+原始项目与 26.2 移植均以 MIT 授权，版权声明见 [LICENSE](LICENSE)（保持原作者原样）。
+26.2 port additions © 2026 koutakutenn-sys, licensed under MIT.

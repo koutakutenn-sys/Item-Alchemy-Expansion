@@ -101,3 +101,4 @@ CI 当前未启用（依赖未提交、无法在 CI 中复现构建），原因�
 ## License
 
 MIT — see [LICENSE](LICENSE).
+26.2 port additions © 2026 koutakutenn-sys, licensed under MIT.
