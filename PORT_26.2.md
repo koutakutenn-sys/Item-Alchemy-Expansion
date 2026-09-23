@@ -1,13 +1,17 @@
 # Minecraft 26.2 Fabric 移植版
 
 这是基于原作者完整 1.2.0 源码的非官方兼容移植，不是早期精简 alpha。
-原始仓库：https://github.com/luckfun233/Item-Alchemy-Expansion
+原始仓库（原作者 luckfun233）：https://github.com/luckfun233/Item-Alchemy-Expansion
 源码基线：`10f429f52435c7f95590b467a597ec22aa8e0512`。
+26.2 移植维护者：koutakutenn-sys
+
+可直接安装的成品 jar 见 [Releases](https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/releases)。
+本仓库是**非官方移植**，与原作者无隶属或背书关系；26.2 相关问题请反馈到本仓库，不要提交到上游。
 
 ## 运行环境
 
 - Minecraft Java Edition 26.2、Java 25
-- Fabric Loader 0.19.5
+- Fabric Loader ≥ 0.19.5（验证于 0.19.5）
 - Fabric API 0.161.0+26.2
 - Item Alchemy **1.3.9**
 - MCPitanLib **4.0.7-fix.1-26.2-fabric**，含 littleintermediaryfallback **1.0.2.262**
@@ -20,7 +24,7 @@
 
 关闭游戏，备份存档，把 `itemalchemy-expansion-1.2.0+26.2.port.1.jar` 放入目标实例的 `mods`。
 不要同时保留另一个 Item Alchemy Expansion JAR，也不要安装 `*-sources.jar` 或 `*-native-dev.jar`。
-本次开发仅使用工程内的隔离运行目录，没有自动改动正式实例的 mods 或存档。
+`libs/` 下的依赖 jar 与 `*-native-dev.jar` 都是**构建用**的，不要放进 `mods/`。
 
 ## 构建和测试
 
@@ -34,7 +38,22 @@
 `build` 包含实际 Minecraft 注册表上的数据断言测试。客户端测试会打开测试游戏窗口、创建独立世界、完成后退出。
 测试模组位于 `src/gametest`，不打包进发布 JAR。生产包在 `build/libs`。
 
-`libs` 中保存本机验证使用的依赖；`prepareItemAlchemyCompileView` 根据原始 Item Alchemy JAR 自动生成仅编译使用的 native-dev 视图。
+### 构建前需要手动准备的依赖（重要）
+
+`build.gradle` 目前通过 `libs/` 读取本地依赖 jar，而 `libs/` **未提交到仓库**（避免公开分发第三方二进制）。
+因此**干净 clone 无法直接构建**，需要自行准备以下 jar 放进 `libs/`：
+
+| 文件 | 来源 | 必需 |
+| --- | --- | --- |
+| `itemalchemy-1.3.9.jar` | Item Alchemy 1.3.9 原版 jar | 是 |
+| `mcpitanlib-4.0.7-fix.1-26.2-fabric.jar` | 上述 MCPitanLib 修复构建 | 是 |
+| `cloth-config-26.2.155.jar` | Cloth Config（可选配置界面） | 否 |
+| `modmenu-20.0.2.jar` | Mod Menu（可选配置入口） | 否 |
+
+尝试改回标准 Maven 坐标时受阻：`maven.pitan76.net` 在当前网络返回 **403（Cloudflare 拦截）**，坐标可用性无法验证，
+因此暂不改动构建方式。CI 也因同样原因未启用（见 `.github/workflows/build.yml.disabled`）。
+
+`prepareItemAlchemyCompileView` 会根据原始 Item Alchemy JAR 自动生成仅编译使用的 native-dev 视图。
 普通代码采用 26.2 官方类名；`build-tools/LegacyMixinBridge.java` 只处理注入旧版 Item Alchemy 的 Mixin，匹配其转换前的描述符。
 MCPitanLib 对合并后的目标类做运行时转换。Minecraft 和 MCPitanLib 自身的 Mixin 不使用该处理。
 此机制不改写用户安装的依赖 JAR。
@@ -65,3 +84,9 @@ MCPitanLib 对合并后的目标类做运行时转换。Minecraft 和 MCPitanLib
 没有针对 TaCZ 非官方分支进行整合测试，也不改变之前对该分支的安全审计结论。
 上游兼容桥可能输出旧类名的 Mixin 类信息警告；测试以实际功能断言和退出结果为准。
 首次使用仍建议创建测试世界，不直接拿唯一存档测试。
+
+## 问题反馈
+
+- **26.2 移植版**：https://github.com/koutakutenn-sys/Item-Alchemy-Expansion/issues
+- 崩溃请附完整日志，并写明 Minecraft / Fabric Loader / Item Alchemy / MCPitanLib 版本
+- **不要把 26.2 移植相关的问题提交到原作者仓库**；1.20.1 原版问题请去[原项目 issue 区](https://github.com/luckfun233/Item-Alchemy-Expansion/issues)
