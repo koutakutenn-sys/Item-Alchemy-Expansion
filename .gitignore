@@ -40,3 +40,6 @@ replay_*.log
 *.jfr
 
 .tmp-mcplib2
+
+# local third-party jars, never part of the build or the repository
+/libs/
