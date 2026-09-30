@@ -3,13 +3,13 @@ package itemalchemy.expansion.client;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.gui.EmcConverterScreenHandler;
 import itemalchemy.expansion.item.EmcCardItem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.pitan76.mcpitanlib.api.client.gui.screen.SimpleInventoryScreen;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawBackgroundArgs;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawForegroundArgs;
@@ -32,7 +32,7 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
     private static final int ACCENT = 0xFF2EC4B6;
     private static final int ACCENT_DARK = 0xFF1E88A8;
 
-    public EmcConverterScreen(EmcConverterScreenHandler handler, PlayerInventory inventory, Text title) {
+    public EmcConverterScreen(EmcConverterScreenHandler handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
         setBackgroundWidth(BG_W);
         setBackgroundHeight(BG_H);
@@ -50,9 +50,9 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
 
     /** 余额心跳：约每秒请求一次，自动化入账/他人操作后保持显示一致 */
     private void tickBalance() {
-        var world = MinecraftClient.getInstance().world;
+        var world = Minecraft.getInstance().level;
         if (world == null) return;
-        long t = world.getTime();
+        long t = world.getGameTime();
         if (t - lastBalanceReqTime >= 20) {
             lastBalanceReqTime = t;
             EmcAutoClientNetwork.sendBalanceRequest();
@@ -61,7 +61,7 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
 
     @Override
     public Identifier getTexture() {
-        return new Identifier(ItemAlchemyExpansion.MOD_ID, "textures/gui/emc_converter");
+        return Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "textures/gui/emc_converter");
     }
 
     @Override
@@ -90,7 +90,7 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
     @Override
     public void drawBackgroundOverride(DrawBackgroundArgs args) {
         // 纯代码绘制，不调 super（背景贴图缺失时避免 GL 报错）
-        DrawContext ctx = args.drawObjectDM.getContext();
+        GuiGraphicsExtractor ctx = args.drawObjectDM.getContext();
         int x = this.x;
         int y = this.y;
 
@@ -100,11 +100,11 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
         ctx.fillGradient(x + 1, y + 1, x + BG_W - 1, y + 12, 0xFFD2D2D2, PANEL);
 
         // 标题
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, y - 8, TEXT_MAIN);
+        ctx.centeredText(this.font, this.title, this.width / 2, y - 8, TEXT_MAIN);
 
         // 输入区标签 + 输入槽（1-4）
-        ctx.drawText(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.emc_converter.input_label"),
+        ctx.text(this.font,
+                Component.translatable("itemalchemy-expansion.emc_converter.input_label"),
                 x + 8, y + 8, TEXT_DIM, false);
 
         // 流向箭头：输入槽 -> 卡槽
@@ -112,12 +112,12 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
 
         // 全部槽位底框（含玩家物品栏/快捷栏，与制卡台一致；槽 0 为卡槽加青色点缀）
         for (Slot s : this.handler.slots) {
-            drawSlotBox(ctx, x + s.x - 1, y + s.y - 1, s.id == 0);
+            drawSlotBox(ctx, x + s.x - 1, y + s.y - 1, s.index == 0);
         }
 
         // 空卡槽内画卡片轮廓示意，指明「卡放这里」
         Slot cardSlot = this.handler.slots.get(0);
-        if (cardSlot.getStack().isEmpty()) {
+        if (cardSlot.getItem().isEmpty()) {
             int cx = x + cardSlot.x + 3;
             int cy = y + cardSlot.y + 2;
             ctx.fill(cx, cy, cx + 10, cy + 12, 0xFFAEB8C2);
@@ -126,32 +126,32 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
         }
 
         // 状态行：无卡提示 / 绑卡同步说明 / 卡内余额
-        ItemStack card = this.handler.slots.get(0).getStack();
+        ItemStack card = this.handler.slots.get(0).getItem();
         if (card.isEmpty()) {
-            ctx.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.emc_converter.no_card"),
+            ctx.centeredText(this.font,
+                    Component.translatable("itemalchemy-expansion.emc_converter.no_card"),
                     this.width / 2, y + 75, TEXT_DIM);
         } else if (EmcCardItem.isBound(card)) {
             String name = EmcCardItem.getBindName(card);
             if (name == null || name.isEmpty()) name = EmcCardItem.getBindUuid(card);
-            ctx.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.emc_converter.bound_card",
-                            Text.literal(name == null ? "?" : name)),
+            ctx.centeredText(this.font,
+                    Component.translatable("itemalchemy-expansion.emc_converter.bound_card",
+                            Component.literal(name == null ? "?" : name)),
                     this.width / 2, y + 75, TEXT_DIM);
         } else {
             // 余额优先取服务端推送值：关联卡余额在服务端共享账户，客户端卡 NBT 读不到
             long shown = serverBalance >= 0 ? serverBalance : EmcCardItem.getStoredEmc(card);
-            Text balance = Text.translatable("itemalchemy-expansion.emc_converter.card_balance",
-                    Text.literal(EmcCardItem.formatNumber(shown)));
-            ctx.drawCenteredTextWithShadow(this.textRenderer, balance, this.width / 2, y + 75, ACCENT_DARK);
+            Component balance = Component.translatable("itemalchemy-expansion.emc_converter.card_balance",
+                    Component.literal(EmcCardItem.formatNumber(shown)));
+            ctx.centeredText(this.font, balance, this.width / 2, y + 75, ACCENT_DARK);
         }
-        ctx.drawCenteredTextWithShadow(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.emc_converter.hint"),
+        ctx.centeredText(this.font,
+                Component.translatable("itemalchemy-expansion.emc_converter.hint"),
                 this.width / 2, y + 85, TEXT_DIM);
     }
 
     /** 向下箭头（杆 + 逐行加宽的三角头） */
-    private void drawDownArrow(DrawContext ctx, int cx, int top, int color) {
+    private void drawDownArrow(GuiGraphicsExtractor ctx, int cx, int top, int color) {
         ctx.fill(cx, top, cx + 4, top + 8, color);
         for (int i = 0; i < 6; i++) {
             int half = i + 2;
@@ -159,7 +159,7 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
         }
     }
 
-    private void drawSlotBox(DrawContext ctx, int sx, int sy, boolean card) {
+    private void drawSlotBox(GuiGraphicsExtractor ctx, int sx, int sy, boolean card) {
         ctx.fill(sx, sy, sx + 18, sy + 18, SLOT_BG);
         drawBorder(ctx, sx, sy, 18, 18, card ? ACCENT_DARK : PANEL_LINE);
         if (card) {
@@ -167,7 +167,7 @@ public class EmcConverterScreen extends SimpleInventoryScreen<EmcConverterScreen
         }
     }
 
-    private void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
+    private void drawBorder(GuiGraphicsExtractor ctx, int x, int y, int w, int h, int color) {
         ctx.fill(x, y, x + w, y + 1, color);
         ctx.fill(x, y + h - 1, x + w, y + h, color);
         ctx.fill(x, y, x + 1, y + h, color);

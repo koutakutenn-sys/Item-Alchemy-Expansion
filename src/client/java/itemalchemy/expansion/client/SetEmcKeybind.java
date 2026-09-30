@@ -3,13 +3,13 @@ package itemalchemy.expansion.client;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.nbt.ShulkerBoxSupport;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Hand;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.InteractionHand;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -30,36 +30,36 @@ public final class SetEmcKeybind {
     /** 翻译键 */
     public static final String KEY_NAME = "itemalchemy-expansion.keybind.set_emc";
 
-    /** 唯一 KeyBinding 实例 */
-    private static KeyBinding keyBinding;
+    /** 唯一 KeyMapping 实例 */
+    private static KeyMapping keyBinding;
 
     private SetEmcKeybind() {}
 
     /** 注册按键 + 注册 tick 监听。在 {@code onInitializeClient} 中调用。 */
     public static void register() {
-        keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyBinding = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 KEY_NAME,
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_K,
-                KEY_CATEGORY
+                KeyMapping.Category.register(net.minecraft.resources.Identifier.fromNamespaceAndPath("itemalchemy-expansion", "main"))
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(SetEmcKeybind::onEndTick);
     }
 
-    private static void onEndTick(MinecraftClient client) {
+    private static void onEndTick(Minecraft client) {
         // wasPressed 返回 true 后会消费一次按下状态，避免重复触发
-        while (keyBinding.wasPressed()) {
+        while (keyBinding.consumeClick()) {
             tryOpenSetEmcScreen(client);
         }
     }
 
-    private static void tryOpenSetEmcScreen(MinecraftClient client) {
+    private static void tryOpenSetEmcScreen(Minecraft client) {
         if (client.player == null) return;
         // 玩家在 GUI 中时不触发（避免与转换桌等界面的按键冲突）
-        if (client.currentScreen != null) return;
+        if (client.gui.screen() != null) return;
 
-        PlayerEntity player = client.player;
+        Player player = client.player;
         ItemStack target = pickHeldItem(player);
         if (target.isEmpty()) {
             // 没有手持物品：不打开 GUI，静默（玩家可能误按）
@@ -68,19 +68,19 @@ public final class SetEmcKeybind {
 
         // 带内容物的潜影盒不允许手动定价：其 EMC 按内容物求和，固定值无意义
         if (ShulkerBoxSupport.hasContents(target)) {
-            player.sendMessage(net.minecraft.text.Text.translatable(
-                    "itemalchemy-expansion.set_emc.fail.shulker_with_contents"), true);
+            player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable(
+                    "itemalchemy-expansion.set_emc.fail.shulker_with_contents"));
             return;
         }
 
         // tick 回调本身在主线程，直接 setScreen 即可
-        client.setScreen(new SetEmcScreen(target));
+        client.setScreenAndShow(new SetEmcScreen(target));
     }
 
     /** 主手优先，主手为空时用副手 */
-    private static ItemStack pickHeldItem(PlayerEntity player) {
-        ItemStack main = player.getStackInHand(Hand.MAIN_HAND);
+    private static ItemStack pickHeldItem(Player player) {
+        ItemStack main = player.getItemInHand(InteractionHand.MAIN_HAND);
         if (!main.isEmpty()) return main;
-        return player.getStackInHand(Hand.OFF_HAND);
+        return player.getItemInHand(InteractionHand.OFF_HAND);
     }
 }

@@ -283,5 +283,6 @@
   "itemalchemy-expansion.config.automationMode.tooltip": "默认：脉冲。\n持续：通电期间按间隔持续工作。\n脉冲：每次红石信号上升沿触发一件（类似投掷器，需高频信号，不持续运行）。",
   "itemalchemy-expansion.config.automationMode.option.continuous": "持续（通电期间按间隔运行）",
   "itemalchemy-expansion.config.automationMode.option.pulse": "脉冲（每次信号触发一件）",
-  "itemalchemy-expansion.close": "关闭"
+  "itemalchemy-expansion.close": "关闭",
+  "key.category.itemalchemy-expansion.main": "Item Alchemy Expansion"
 }

@@ -4,10 +4,10 @@ import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.network.AutoEmcStore;
 import itemalchemy.expansion.network.PreciseEmcStore;
 import itemalchemy.expansion.network.SetEmcNetwork;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.PacketByteBuf;
+import itemalchemy.expansion.compat.port.ClientPlayNetworking;
+import itemalchemy.expansion.compat.port.PacketByteBufs;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,17 +62,17 @@ public final class SetEmcClientNetwork {
                 "[IAExp][SetEmc][C2S] sendSetEmc: itemId='{}', emc={}, scope={}, precise={}, variantKey='{}', clearCount={}",
                 itemId, emc, scope, precise, variantKey,
                 preciseVkStrsToClear == null ? 0 : preciseVkStrsToClear.size());
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeString(itemId);
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(itemId);
         buf.writeLong(emc);
         buf.writeVarInt(scope);
         buf.writeBoolean(precise);
-        buf.writeString(variantKey == null ? "" : variantKey);
+        buf.writeUtf(variantKey == null ? "" : variantKey);
         if (preciseVkStrsToClear == null) {
             buf.writeVarInt(0);
         } else {
             buf.writeVarInt(preciseVkStrsToClear.size());
-            for (String vk : preciseVkStrsToClear) buf.writeString(vk == null ? "" : vk);
+            for (String vk : preciseVkStrsToClear) buf.writeUtf(vk == null ? "" : vk);
         }
         ClientPlayNetworking.send(SetEmcNetwork.SET_EMC_ID, buf);
     }
@@ -86,8 +86,8 @@ public final class SetEmcClientNetwork {
      */
     public static void sendQueryPreciseByItem(String itemId) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
-            buf.writeString(itemId == null ? "" : itemId);
+            FriendlyByteBuf buf = PacketByteBufs.create();
+            buf.writeUtf(itemId == null ? "" : itemId);
             ClientPlayNetworking.send(SetEmcNetwork.QUERY_PRECISE_BY_ITEM_ID, buf);
             ItemAlchemyExpansion.debug("[IAExp] query precise by item sent: itemId='{}'", itemId);
         } catch (Throwable t) {
@@ -103,7 +103,7 @@ public final class SetEmcClientNetwork {
      */
     public static void sendRepriceCheck() {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             ClientPlayNetworking.send(SetEmcNetwork.REPRICE_CHECK_ID, buf);
             ItemAlchemyExpansion.debug("[IAExp] reprice check sent to server");
         } catch (Throwable t) {
@@ -119,11 +119,11 @@ public final class SetEmcClientNetwork {
      */
     public static void sendRepriceSelective(List<String> generalIds, List<String> preciseVkStrs) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeVarInt(generalIds.size());
-            for (String id : generalIds) buf.writeString(id);
+            for (String id : generalIds) buf.writeUtf(id);
             buf.writeVarInt(preciseVkStrs.size());
-            for (String vk : preciseVkStrs) buf.writeString(vk);
+            for (String vk : preciseVkStrs) buf.writeUtf(vk);
             ClientPlayNetworking.send(SetEmcNetwork.REPRICE_SELECTIVE_ID, buf);
             ItemAlchemyExpansion.debug("[IAExp] reprice selective sent: general={} precise={}",
                     generalIds.size(), preciseVkStrs.size());
@@ -196,22 +196,22 @@ public final class SetEmcClientNetwork {
                     int generalCount = buf.readVarInt();
                     List<RepriceConfirmScreen.RepriceEntry> entries = new ArrayList<>(generalCount);
                     for (int i = 0; i < generalCount; i++) {
-                        String id = buf.readString();
+                        String id = buf.readUtf();
                         long oldEmc = buf.readLong();
                         entries.add(RepriceConfirmScreen.RepriceEntry.general(id, oldEmc));
                     }
                     int preciseCount = buf.readVarInt();
                     for (int i = 0; i < preciseCount; i++) {
-                        String vkStr = buf.readString();
+                        String vkStr = buf.readUtf();
                         long oldEmc = buf.readLong();
                         entries.add(RepriceConfirmScreen.RepriceEntry.precise(vkStr, oldEmc));
                     }
                     client.execute(() -> {
                         try {
-                            MinecraftClient mc = MinecraftClient.getInstance();
+                            Minecraft mc = Minecraft.getInstance();
                             if (mc == null || mc.player == null) return;
                             // 在客户端主线程打开逐个选择屏幕
-                            mc.setScreen(new RepriceConfirmScreen(entries));
+                            mc.setScreenAndShow(new RepriceConfirmScreen(entries));
                             ItemAlchemyExpansion.debug("[IAExp] reprice candidates received: {} general + {} precise, opened RepriceConfirmScreen",
                                     generalCount, preciseCount);
                         } catch (Throwable t) {

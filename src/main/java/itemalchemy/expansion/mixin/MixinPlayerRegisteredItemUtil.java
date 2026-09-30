@@ -1,7 +1,7 @@
 package itemalchemy.expansion.mixin;
 
 import itemalchemy.expansion.nbt.ItemVariantKey;
-import net.minecraft.item.Item;
+import net.minecraft.world.item.Item;
 import net.pitan76.itemalchemy.api.PlayerRegisteredItemUtil;
 import net.pitan76.mcpitanlib.api.entity.Player;
 import net.pitan76.mcpitanlib.api.util.CompatIdentifier;

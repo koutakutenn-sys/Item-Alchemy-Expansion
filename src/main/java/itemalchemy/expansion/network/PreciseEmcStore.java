@@ -5,7 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.world.level.storage.LevelResource;
 import net.pitan76.itemalchemy.EMCManager;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ public final class PreciseEmcStore {
 
     /** 返回本存档精确覆盖文件路径 */
     public static Path getSaveFile(MinecraftServer server) {
-        Path worldRoot = server.getSavePath(WorldSavePath.ROOT);
+        Path worldRoot = server.getWorldPath(LevelResource.ROOT);
         return worldRoot.resolve(SAVE_FILE_NAME);
     }
 

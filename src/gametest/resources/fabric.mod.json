@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "itemalchemy-expansion-port-tests",
+  "version": "1.0.0",
+  "name": "Item Alchemy Expansion isolated port tests",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": ["itemalchemy.expansion.test.PortClientGameTest"]
+  },
+  "depends": {"itemalchemy-expansion": "*", "fabric-client-gametest-api-v1": "*"}
+}

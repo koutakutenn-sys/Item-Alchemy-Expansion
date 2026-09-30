@@ -7,17 +7,17 @@ import itemalchemy.expansion.gui.EmcEmitterScreenHandler;
 import itemalchemy.expansion.item.EmcCardItem;
 import itemalchemy.expansion.nbt.ItemVariantKey;
 import itemalchemy.expansion.nbt.ShulkerBoxSupport;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.pitan76.mcpitanlib.api.client.gui.screen.SimpleInventoryScreen;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawBackgroundArgs;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.RenderArgs;
@@ -70,11 +70,11 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     private String facing = "";
     private boolean loaded = false;
     private int scroll = 0;
-    private TextFieldWidget searchField;
+    private EditBox searchField;
     /** 上一次看到的卡槽栈，用于检测卡槽变化后刷新余额（1.20.1 HandledScreen 无可重写的槽变化钩子） */
     private ItemStack lastCardSlot = ItemStack.EMPTY;
 
-    public EmcEmitterScreen(EmcEmitterScreenHandler handler, PlayerInventory inventory, Text title) {
+    public EmcEmitterScreen(EmcEmitterScreenHandler handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
         setBackgroundWidth(BG_W);
         setBackgroundHeight(BG_H);
@@ -84,11 +84,11 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     @Override
     public Identifier getTexture() {
         // 背景为纯代码绘制，返回占位符即可（不会被使用）
-        return new Identifier(ItemAlchemyExpansion.MOD_ID, "textures/gui/emc_emitter");
+        return Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "textures/gui/emc_emitter");
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
@@ -98,19 +98,19 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
         int y = this.y;
 
         // 搜索框（模糊过滤转换桌列表：名称 / id / 变体键）
-        String oldText = searchField == null ? "" : searchField.getText();
-        searchField = new TextFieldWidget(this.textRenderer, x + LIST_X, y + SEARCH_Y,
-                LIST_W, 14, Text.translatable("itemalchemy-expansion.emc_emitter.search"));
+        String oldText = searchField == null ? "" : searchField.getValue();
+        searchField = new EditBox(this.font, x + LIST_X, y + SEARCH_Y,
+                LIST_W, 14, Component.translatable("itemalchemy-expansion.emc_emitter.search"));
         searchField.setMaxLength(64);
-        searchField.setText(oldText);
-        searchField.setChangedListener(t -> applyFilter());
+        searchField.setValue(oldText);
+        searchField.setResponder(t -> applyFilter());
         addDrawableChild_compatibility(searchField);
 
         // 清除选择按钮（右下）
-        addDrawableChild_compatibility(ButtonWidget.builder(
-                Text.translatable("itemalchemy-expansion.emc_emitter.clear"),
+        addDrawableChild_compatibility(Button.builder(
+                Component.translatable("itemalchemy-expansion.emc_emitter.clear"),
                 b -> EmcAutoClientNetwork.sendSet(null))
-                .dimensions(x + 184, y + 132, 70, 20).build());
+                .bounds(x + 184, y + 132, 70, 20).build());
 
         applyFilter();
         // 菜单已打开，请求服务端下发列表（含余额/卡栈）
@@ -120,7 +120,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     /** 按搜索词重建过滤视图并复位滚动 */
     private void applyFilter() {
         filtered.clear();
-        String q = searchField == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
+        String q = searchField == null ? "" : searchField.getValue().trim().toLowerCase(Locale.ROOT);
         for (int i = 0; i < keys.size(); i++) {
             if (q.isEmpty() || matches(stacks.get(i), keys.get(i), q)) {
                 filtered.add(i);
@@ -134,12 +134,12 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
             return true;
         }
         if (!stack.isEmpty()) {
-            String name = stack.getName().getString().toLowerCase(Locale.ROOT);
+            String name = stack.getHoverName().getString().toLowerCase(Locale.ROOT);
             if (name.contains(q)) {
                 return true;
             }
             try {
-                String id = Registries.ITEM.getId(stack.getItem()).toString();
+                String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 if (id.toLowerCase(Locale.ROOT).contains(q)) {
                     return true;
                 }
@@ -176,9 +176,9 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     private long lastBalanceReqTime = 0;
 
     private void tickBalance() {
-        var world = MinecraftClient.getInstance().world;
+        var world = Minecraft.getInstance().level;
         if (world == null) return;
-        long t = world.getTime();
+        long t = world.getGameTime();
         if (t - lastBalanceReqTime >= 20) {
             lastBalanceReqTime = t;
             EmcAutoClientNetwork.sendBalanceRequest();
@@ -188,7 +188,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     /** 卡槽内容变化（放入/取出 EMC 卡）时重新请求，刷新余额显示。
      *  仅比较物品身份（空/非空、物品种类），避免普通卡 NBT 每次扣减触发整列表重发。 */
     private void refreshOnCardChange() {
-        ItemStack slotCard = this.handler.getSlot(EmcEmitterBlockEntity.CARD_SLOT).getStack();
+        ItemStack slotCard = this.handler.getSlot(EmcEmitterBlockEntity.CARD_SLOT).getItem();
         boolean changed = slotCard.isEmpty() != lastCardSlot.isEmpty()
                 || (!slotCard.isEmpty() && slotCard.getItem() != lastCardSlot.getItem());
         if (changed) {
@@ -203,7 +203,9 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x(), mouseY = event.y();
+        int button = event.button();
         if (button == 0 && canPick() && inListArea(mouseX, mouseY)) {
             int row = scroll + (int) ((mouseY - (this.y + LIST_TOP)) / ROW_H);
             if (row >= 0 && row < filtered.size()) {
@@ -211,18 +213,18 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
                 return true;
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double amount) {
         if (canPick() && inListArea(mouseX, mouseY)) {
             int rows = visibleRows();
             int maxScroll = Math.max(0, filtered.size() - rows);
             scroll = (int) Math.max(0, Math.min(maxScroll, scroll - amount));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, amount);
+        return super.mouseScrolled(mouseX, mouseY, horizontal, amount);
     }
 
     private boolean canPick() {
@@ -235,7 +237,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
 
     @Override
     public void drawBackgroundOverride(DrawBackgroundArgs args) {
-        DrawContext ctx = args.drawObjectDM.getContext();
+        GuiGraphicsExtractor ctx = args.drawObjectDM.getContext();
         int x = this.x;
         int y = this.y;
 
@@ -245,7 +247,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
         ctx.fillGradient(x + 1, y + 1, x + BG_W - 1, y + 12, 0xFFD2D2D2, PANEL);
 
         // 标题
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, y - 8, TEXT_MAIN);
+        ctx.centeredText(this.font, this.title, this.width / 2, y - 8, TEXT_MAIN);
 
         // 左列列表区底框
         ctx.fill(x + LIST_X, y + LIST_TOP, x + LIST_X + LIST_W, y + LIST_BOTTOM, 0xFF9A9A9A);
@@ -253,11 +255,11 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
 
         // 右列槽位底框（卡槽 + 玩家物品栏 + 快捷栏，坐标取自 ScreenHandler）
         for (Slot s : this.handler.slots) {
-            drawSlotBox(ctx, x + s.x - 1, y + s.y - 1, s.id == EmcEmitterBlockEntity.CARD_SLOT);
+            drawSlotBox(ctx, x + s.x - 1, y + s.y - 1, s.index == EmcEmitterBlockEntity.CARD_SLOT);
         }
         // 空卡槽画卡片轮廓示意
         Slot cardSlot = this.handler.getSlot(EmcEmitterBlockEntity.CARD_SLOT);
-        if (cardSlot.getStack().isEmpty()) {
+        if (cardSlot.getItem().isEmpty()) {
             int cx = x + cardSlot.x + 3;
             int cy = y + cardSlot.y + 2;
             ctx.fill(cx, cy, cx + 10, cy + 12, 0xFFAEB8C2);
@@ -276,7 +278,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     public void renderOverride(RenderArgs args) {
         super.renderOverride(args);
 
-        DrawContext ctx = args.drawObjectDM.getContext();
+        GuiGraphicsExtractor ctx = args.drawObjectDM.getContext();
         int x = this.x;
         int y = this.y;
 
@@ -286,24 +288,24 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
         tickBalance();
 
         // 卡余额（卡槽右侧）+ 输出方向（左列底部）。绑卡显示「已绑定 <名> · 余额」。
-        ItemStack card = this.handler.getSlot(EmcEmitterBlockEntity.CARD_SLOT).getStack();
-        Text balanceText;
+        ItemStack card = this.handler.getSlot(EmcEmitterBlockEntity.CARD_SLOT).getItem();
+        Component balanceText;
         if (!card.isEmpty() && card.getItem() instanceof EmcCardItem && EmcCardItem.isBound(card)) {
             String name = EmcCardItem.getBindName(card);
             if (name == null || name.isEmpty()) name = EmcCardItem.getBindUuid(card);
-            balanceText = Text.translatable("itemalchemy-expansion.emc_emitter.balance_bound",
-                    Text.literal(name == null ? "?" : name),
-                    Text.literal(EmcCardItem.formatNumber(balance)));
+            balanceText = Component.translatable("itemalchemy-expansion.emc_emitter.balance_bound",
+                    Component.literal(name == null ? "?" : name),
+                    Component.literal(EmcCardItem.formatNumber(balance)));
         } else {
-            balanceText = Text.translatable("itemalchemy-expansion.emc_emitter.balance",
-                    Text.literal(EmcCardItem.formatNumber(balance)));
+            balanceText = Component.translatable("itemalchemy-expansion.emc_emitter.balance",
+                    Component.literal(EmcCardItem.formatNumber(balance)));
         }
-        ctx.drawText(this.textRenderer, balanceText,
+        ctx.text(this.font, balanceText,
                 x + EmcEmitterScreenHandler.CARD_SLOT_X + 26, y + 22, TEXT_MAIN, false);
         if (!facing.isEmpty()) {
-            ctx.drawText(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.emc_emitter.facing",
-                            Text.translatable("itemalchemy-expansion.direction." + facing)),
+            ctx.text(this.font,
+                    Component.translatable("itemalchemy-expansion.emc_emitter.facing",
+                            Component.translatable("itemalchemy-expansion.direction." + facing)),
                     x + LIST_X, y + LIST_BOTTOM + 6, TEXT_DIM, false);
         }
 
@@ -311,12 +313,12 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
         int listTop = y + LIST_TOP;
         int listBottom = y + LIST_BOTTOM;
         if (!loaded) {
-            ctx.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.emc_emitter.loading"),
+            ctx.centeredText(this.font,
+                    Component.translatable("itemalchemy-expansion.emc_emitter.loading"),
                     x + LIST_X + LIST_W / 2, (listTop + listBottom) / 2 - 4, 0xFF707070);
         } else if (filtered.isEmpty()) {
-            ctx.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable(keys.isEmpty()
+            ctx.centeredText(this.font,
+                    Component.translatable(keys.isEmpty()
                             ? "itemalchemy-expansion.emc_emitter.empty"
                             : "itemalchemy-expansion.emc_emitter.no_match"),
                     x + LIST_X + LIST_W / 2, (listTop + listBottom) / 2 - 4, 0xFF707070);
@@ -337,13 +339,13 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
                     ctx.fill(x + LIST_X + 1, ry, x + LIST_X + 2, ry + ROW_H, ACCENT);
                 }
                 if (!st.isEmpty()) {
-                    ctx.drawItem(st, x + LIST_X + 3, ry + 1);
+                    ctx.item(st, x + LIST_X + 3, ry + 1);
                 }
-                String name = st.isEmpty() ? keys.get(i) : st.getName().getString();
-                ctx.drawText(this.textRenderer, name, x + LIST_X + 23, ry + 6,
+                String name = st.isEmpty() ? keys.get(i) : st.getHoverName().getString();
+                ctx.text(this.font, name, x + LIST_X + 23, ry + 6,
                         isSel ? 0xFF143A3A : 0xFF606060, false);
                 if (isSel) {
-                    ctx.drawText(this.textRenderer, ">", x + LIST_X + 1, ry + 6, ACCENT_DARK, false);
+                    ctx.text(this.font, ">", x + LIST_X + 1, ry + 6, ACCENT_DARK, false);
                 }
             }
         }
@@ -366,37 +368,37 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     }
 
     /** 绘制「当前选择」展示面板，并处理悬停信息框 / 潜影盒 Shift 预览 */
-    private void renderSelectionPanel(DrawContext ctx, int x, int y, int mouseX, int mouseY) {
+    private void renderSelectionPanel(GuiGraphicsExtractor ctx, int x, int y, int mouseX, int mouseY) {
         int px = x + SELECT_PANEL_X;
         int py = y + SELECT_PANEL_Y;
         ctx.fill(px, py, px + SELECT_PANEL_W, py + SELECT_PANEL_H, 0xFF9A9A9A);
         drawBorder(ctx, px, py, SELECT_PANEL_W, SELECT_PANEL_H, PANEL_LINE);
-        ctx.drawText(this.textRenderer,
-                Text.translatable("itemalchemy-expansion.emc_emitter.current"),
+        ctx.text(this.font,
+                Component.translatable("itemalchemy-expansion.emc_emitter.current"),
                 px + 4, py + 2, 0xFF5A5A5A, false);
 
         ItemStack sel = selectedStack();
         if (sel.isEmpty()) {
-            ctx.drawText(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.emc_emitter.none"),
+            ctx.text(this.font,
+                    Component.translatable("itemalchemy-expansion.emc_emitter.none"),
                     px + 4, py + 16, 0xFF888888, false);
             return;
         }
-        ctx.drawItem(sel, px + 4, py + 14);
+        ctx.item(sel, px + 4, py + 14);
         long cost = emcOf(sel);
-        Text name = sel.getName();
+        Component name = sel.getHoverName();
         String line = cost > 0
                 ? name.getString() + "  (" + EmcCardItem.formatNumber(cost) + " EMC)"
                 : name.getString();
-        ctx.drawText(this.textRenderer, Text.literal(line), px + 24, py + 18, TEXT_MAIN, false);
+        ctx.text(this.font, Component.literal(line), px + 24, py + 18, TEXT_MAIN, false);
 
         boolean hover = inSelectionPanel(mouseX, mouseY);
         if (!hover) return;
         // 悬停显示原版物品信息框
-        ctx.drawTooltip(this.textRenderer,
-                Screen.getTooltipFromItem(MinecraftClient.getInstance(), sel), mouseX, mouseY);
+        ctx.setComponentTooltipForNextFrame(this.font,
+                Screen.getTooltipFromItem(Minecraft.getInstance(), sel), mouseX, mouseY);
         // 潜影盒支持 Shift 预览内容物
-        if (Screen.hasShiftDown() && ShulkerBoxSupport.isShulkerBox(sel)) {
+        if (net.minecraft.client.Minecraft.getInstance().hasShiftDown() && ShulkerBoxSupport.isShulkerBox(sel)) {
             try {
                 renderShulkerPreview(ctx, mouseX, mouseY, sel);
             } catch (Throwable t) {
@@ -406,7 +408,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
     }
 
     /** 简洁 9×3 潜影盒内容预览（Shift 悬停选择展示时） */
-    private void renderShulkerPreview(DrawContext ctx, int mouseX, int mouseY, ItemStack shulkerBox) {
+    private void renderShulkerPreview(GuiGraphicsExtractor ctx, int mouseX, int mouseY, ItemStack shulkerBox) {
         ShulkerBoxSupport.ContentsAndEmc cae = ShulkerBoxSupport.getContentsAndSumEmc(shulkerBox);
         ItemStack[] contents = cae.contents;
         final int cols = 9, rows = 3, slot = 18, pad = 4, title = 12;
@@ -419,14 +421,14 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
         if (px + w > this.width) px = this.width - w;
         if (py + h > this.height) py = this.height - h;
 
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(0, 0, 500);
+        ctx.pose().pushMatrix();
+        ctx.nextStratum();
         try {
             ctx.fill(px, py, px + w, py + h, 0xF0101010);
             drawBorder(ctx, px, py, w, h, 0xFF505050);
-            ctx.drawTextWithShadow(this.textRenderer,
-                    Text.translatable("itemalchemy-expansion.shulker_box.preview_title",
-                            shulkerBox.getName(), String.format("%,d", cae.sumEmc)),
+            ctx.text(this.font,
+                    Component.translatable("itemalchemy-expansion.shulker_box.preview_title",
+                            shulkerBox.getHoverName(), String.format("%,d", cae.sumEmc)),
                     px + pad, py + pad, 0xFFFFFF);
             int gridY = py + pad + title + 2;
             for (int r = 0; r < rows; r++) {
@@ -436,11 +438,11 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
                     int sy = gridY + r * slot;
                     ctx.fill(sx, sy, sx + slot, sy + slot, 0x80202020);
                     ItemStack item = contents[idx];
-                    if (!item.isEmpty()) ctx.drawItem(item, sx + 1, sy + 1);
+                    if (!item.isEmpty()) ctx.item(item, sx + 1, sy + 1);
                 }
             }
         } finally {
-            ctx.getMatrices().pop();
+            ctx.pose().popMatrix();
         }
     }
 
@@ -452,7 +454,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
         }
     }
 
-    private void drawSlotBox(DrawContext ctx, int sx, int sy, boolean card) {
+    private void drawSlotBox(GuiGraphicsExtractor ctx, int sx, int sy, boolean card) {
         ctx.fill(sx, sy, sx + 18, sy + 18, SLOT_BG);
         drawBorder(ctx, sx, sy, 18, 18, card ? ACCENT_DARK : PANEL_LINE);
         if (card) {
@@ -460,7 +462,7 @@ public class EmcEmitterScreen extends SimpleInventoryScreen<EmcEmitterScreenHand
         }
     }
 
-    private void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
+    private void drawBorder(GuiGraphicsExtractor ctx, int x, int y, int w, int h, int color) {
         ctx.fill(x, y, x + w, y + 1, color);
         ctx.fill(x, y + h - 1, x + w, y + h, color);
         ctx.fill(x, y, x + 1, y + h, color);

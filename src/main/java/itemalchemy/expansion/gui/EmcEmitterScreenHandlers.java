@@ -1,14 +1,14 @@
 package itemalchemy.expansion.gui;
 
 import itemalchemy.expansion.ItemAlchemyExpansion;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.screen.ScreenHandlerType;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.resources.Identifier;
 import net.pitan76.mcpitanlib.api.gui.SimpleScreenHandlerTypeBuilder;
 
 /**
- * EMC 输出器 ScreenHandlerType 注册。
+ * EMC 输出器 MenuType 注册。
  */
 public final class EmcEmitterScreenHandlers {
 
@@ -17,12 +17,12 @@ public final class EmcEmitterScreenHandlers {
     private static final SimpleScreenHandlerTypeBuilder<EmcEmitterScreenHandler> BUILDER =
             new SimpleScreenHandlerTypeBuilder<>(e -> new EmcEmitterScreenHandler(e));
 
-    /** EMC 输出器 ScreenHandlerType */
-    public static final ScreenHandlerType<EmcEmitterScreenHandler> TYPE;
+    /** EMC 输出器 MenuType */
+    public static final MenuType<EmcEmitterScreenHandler> TYPE;
 
     static {
-        TYPE = Registry.register(Registries.SCREEN_HANDLER,
-                new Identifier(ItemAlchemyExpansion.MOD_ID, "emc_emitter"),
+        TYPE = Registry.register(BuiltInRegistries.MENU,
+                Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "emc_emitter"),
                 BUILDER.build());
     }
 

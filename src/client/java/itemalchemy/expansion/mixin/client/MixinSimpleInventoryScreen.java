@@ -2,7 +2,7 @@ package itemalchemy.expansion.mixin.client;
 
 import itemalchemy.expansion.client.AlchemyTableScreenShulkerPreview;
 import itemalchemy.expansion.client.AlchemyTableSlotMatchOverlay;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.pitan76.itemalchemy.client.screen.AlchemyTableScreen;
 import net.pitan76.mcpitanlib.api.client.gui.screen.SimpleInventoryScreen;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.RenderArgs;
@@ -41,7 +41,7 @@ public class MixinSimpleInventoryScreen {
         // 只在 AlchemyTableScreen 上触发（Mixin 对所有 SimpleInventoryScreen 子类生效）
         if (!((Object) this instanceof AlchemyTableScreen)) return;
         AlchemyTableScreen screen = (AlchemyTableScreen) (Object) this;
-        DrawContext context = args.drawObjectDM.getContext();
+        GuiGraphicsExtractor context = args.drawObjectDM.getContext();
 
         // 先画小标志，再画 Shift 预览，确保 Shift 预览的红框/焦点框覆盖在小标志之上
         AlchemyTableSlotMatchOverlay.onAfterRender(screen, context, args.mouseX, args.mouseY);

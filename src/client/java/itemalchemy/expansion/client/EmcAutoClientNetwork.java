@@ -4,11 +4,11 @@ import itemalchemy.expansion.IAExpServices;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.nbt.ItemVariantKey;
 import itemalchemy.expansion.network.EmcAutoNetwork;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.ItemStack;
-import net.minecraft.network.PacketByteBuf;
+import itemalchemy.expansion.compat.port.ClientPlayNetworking;
+import itemalchemy.expansion.compat.port.PacketByteBufs;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,10 +67,10 @@ public final class EmcAutoClientNetwork {
     /** 客户端设置所选物品（variant 为 null 表示清除） */
     public static void sendSet(String variant) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeBoolean(variant != null && !variant.isEmpty());
             if (variant != null && !variant.isEmpty()) {
-                buf.writeString(variant);
+                buf.writeUtf(variant);
             }
             ClientPlayNetworking.send(EmcAutoNetwork.SET_ID, buf);
         } catch (Throwable t) {
@@ -81,8 +81,8 @@ public final class EmcAutoClientNetwork {
     /** 客户端通知服务端同步自动装置合成配方（配置保存后调用，开关变更即时生效） */
     public static void sendConfigSync() {
         try {
-            if (MinecraftClient.getInstance() == null
-                    || MinecraftClient.getInstance().getNetworkHandler() == null) {
+            if (Minecraft.getInstance() == null
+                    || Minecraft.getInstance().getConnection() == null) {
                 return;
             }
             ClientPlayNetworking.send(EmcAutoNetwork.CFG_SYNC_ID, PacketByteBufs.create());
@@ -95,16 +95,16 @@ public final class EmcAutoClientNetwork {
     public static void registerClientReceiver() {
         ClientPlayNetworking.registerGlobalReceiver(EmcAutoNetwork.LIST_S2C_ID,
                 (client, handler, buf, responseSender) -> {
-                    final String selected = buf.readString();
+                    final String selected = buf.readUtf();
                     final long balance = buf.readLong();
                     // 与服务端 handleListRequest 写入顺序严格一致（含 facing + card），漏读会导致后续字节全部错位
-                    final String facing = buf.readString();
-                    final ItemStack card = buf.readItemStack();
+                    final String facing = buf.readUtf();
+                    final ItemStack card = itemalchemy.expansion.compat.port.StackData.fromNbt(buf.readNbt());
                     final int n = buf.readInt();
                     final List<String> keys = new ArrayList<>(n);
                     final List<ItemStack> stacks = new ArrayList<>(n);
                     for (int i = 0; i < n; i++) {
-                        String s = buf.readString();
+                        String s = buf.readUtf();
                         keys.add(s);
                         ItemVariantKey vk = ItemVariantKey.fromStorageString(s);
                         if (vk != null) {
@@ -122,7 +122,7 @@ public final class EmcAutoClientNetwork {
 
         ClientPlayNetworking.registerGlobalReceiver(EmcAutoNetwork.SELECTED_S2C_ID,
                 (client, handler, buf, responseSender) -> {
-                    final String selected = buf.readString();
+                    final String selected = buf.readUtf();
                     client.execute(() -> {
                         if (activeScreen != null) activeScreen.onSelectedUpdated(selected);
                     });

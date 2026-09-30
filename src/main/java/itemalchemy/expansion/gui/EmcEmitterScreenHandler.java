@@ -2,9 +2,9 @@ package itemalchemy.expansion.gui;
 
 import itemalchemy.expansion.block.EmcEmitterBlockEntity;
 import itemalchemy.expansion.item.EmcCardItem;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
 import net.pitan76.mcpitanlib.api.entity.Player;
 import net.pitan76.mcpitanlib.api.gui.args.CreateMenuEvent;
 import net.pitan76.mcpitanlib.api.gui.inventory.IInventory;
@@ -40,7 +40,7 @@ public class EmcEmitterScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simp
         this(e, tile, tile);
     }
 
-    private EmcEmitterScreenHandler(CreateMenuEvent e, Inventory forgeInv, EmcEmitterBlockEntity tile) {
+    private EmcEmitterScreenHandler(CreateMenuEvent e, Container forgeInv, EmcEmitterBlockEntity tile) {
         super(EmcEmitterScreenHandlers.TYPE, e);
         this.tile = tile;
 
@@ -52,7 +52,7 @@ public class EmcEmitterScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simp
 
     @Override
     public boolean canUse(Player player) {
-        return tile == null || tile.canPlayerUse(player.getPlayerEntity());
+        return tile == null || tile.stillValid(player.getPlayerEntity());
     }
 
     @Override
@@ -78,7 +78,7 @@ public class EmcEmitterScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simp
             ItemStack target = stackInSlot.copy();
             target.setCount(1);
             if (!this.callInsertItem(target, 0, 1, false)) return ItemStackUtil.empty();
-            stackInSlot.decrement(1);
+            stackInSlot.shrink(1);
         }
 
         if (stackInSlot.isEmpty()) {
@@ -95,12 +95,12 @@ public class EmcEmitterScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simp
 
     /** 卡槽：仅允许放入 EMC 卡（绑定/关联/普通卡均可） */
     public static class CardSlot extends Slot {
-        public CardSlot(Inventory inventory, int index, int x, int y) {
+        public CardSlot(Container inventory, int index, int x, int y) {
             super(inventory, index, x, y);
         }
 
         @Override
-        public boolean canInsert(ItemStack stack) {
+        public boolean mayPlace(ItemStack stack) {
             return stack.getItem() instanceof EmcCardItem;
         }
     }

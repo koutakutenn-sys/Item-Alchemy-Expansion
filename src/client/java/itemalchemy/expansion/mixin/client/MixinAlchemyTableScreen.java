@@ -4,11 +4,11 @@ import itemalchemy.expansion.client.AlchemyTableScreenShulkerPreview;
 import itemalchemy.expansion.client.FilterModeClientNetwork;
 import itemalchemy.expansion.search.IAlchemyTableScreenHandlerExt;
 import itemalchemy.expansion.search.SearchFilterMode;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.ClickableWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 import net.pitan76.itemalchemy.client.screen.AlchemyTableScreen;
 import net.pitan76.itemalchemy.gui.screen.AlchemyTableScreenHandler;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.KeyEventArgs;
@@ -46,11 +46,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MixinAlchemyTableScreen {
 
     @Shadow
-    public TextFieldWidget searchBox;
+    public EditBox searchBox;
 
     /** 筛选按钮引用（每次 initOverride 重建） */
     @Unique
-    private ButtonWidget iaexp$filterButton;
+    private Button iaexp$filterButton;
 
     /**
      * 获取当前 ScreenHandler。
@@ -73,10 +73,10 @@ public abstract class MixinAlchemyTableScreen {
      * <p>{@code addDrawableChild_compatibility} 是 mcpitanlib {@code SimpleHandledScreen} 上的
      * <b>public</b> 方法，内部直接委托 vanilla {@code HandledScreen.addDrawableChild}。
      * 直接强转 {@code this} 调用即可：方法名是 mcpitanlib 自有（不重映射），描述符里的 vanilla 类引用
-     * 由 loom 自动重映射，dev 与 prod 行为一致。{@link ClickableWidget} 满足泛型上界
+     * 由 loom 自动重映射，dev 与 prod 行为一致。{@link AbstractWidget} 满足泛型上界
      * {@code <T extends Element & Drawable & Selectable>}。</p>
      */
-    private void iaexp$addDrawableChild(ClickableWidget widget) {
+    private void iaexp$addRenderableWidget(AbstractWidget widget) {
         try {
             ((AlchemyTableScreen) (Object) this).addDrawableChild_compatibility(widget);
         } catch (Throwable t) {
@@ -90,7 +90,7 @@ public abstract class MixinAlchemyTableScreen {
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, remap = false)
     private void iaexp$interceptDirectionKeys(KeyEventArgs args, CallbackInfoReturnable<Boolean> cir) {
         // 只在 Shift 按下（预览激活条件之一）时拦截
-        if (!Screen.hasShiftDown()) return;
+        if (!net.minecraft.client.Minecraft.getInstance().hasShiftDown()) return;
         if (!AlchemyTableScreenShulkerPreview.isPreviewFeatureEnabled()) return;
 
         // 强制搜索框失焦，让方向键/WASD 控制预览焦点
@@ -106,7 +106,7 @@ public abstract class MixinAlchemyTableScreen {
 
     @Inject(method = "keyReleased", at = @At("HEAD"), cancellable = true, remap = false)
     private void iaexp$interceptDirectionKeyRelease(KeyEventArgs args, CallbackInfoReturnable<Boolean> cir) {
-        if (!Screen.hasShiftDown()) return;
+        if (!net.minecraft.client.Minecraft.getInstance().hasShiftDown()) return;
         if (!AlchemyTableScreenShulkerPreview.isPreviewFeatureEnabled()) return;
 
         if (isDirectionKey(args.keyCode)) {
@@ -148,20 +148,20 @@ public abstract class MixinAlchemyTableScreen {
                 ? ((IAlchemyTableScreenHandlerExt) handler).iaexp$getFilterMode()
                 : SearchFilterMode.ALL;
 
-        iaexp$filterButton = ButtonWidget.builder(Text.literal(iaexp$labelFor(current)), btn -> {
+        iaexp$filterButton = Button.builder(Component.literal(iaexp$labelFor(current)), btn -> {
             iaexp$onFilterButtonClicked(btn);
         })
-                .dimensions(bx, by, 48, 14)
-                .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(
-                        Text.translatable("itemalchemy-expansion.filter_button.tooltip")))
+                .bounds(bx, by, 48, 14)
+                .tooltip(net.minecraft.client.gui.components.Tooltip.create(
+                        Component.translatable("itemalchemy-expansion.filter_button.tooltip")))
                 .build();
 
-        iaexp$addDrawableChild(iaexp$filterButton);
+        iaexp$addRenderableWidget(iaexp$filterButton);
     }
 
     /** 筛选按钮点击回调 */
     @Unique
-    private void iaexp$onFilterButtonClicked(ButtonWidget btn) {
+    private void iaexp$onFilterButtonClicked(Button btn) {
         AlchemyTableScreenHandler handler = iaexp$getHandler();
         if (handler == null) return;
         if (!(handler instanceof IAlchemyTableScreenHandlerExt)) return;
@@ -182,7 +182,7 @@ public abstract class MixinAlchemyTableScreen {
         } catch (Throwable ignored) {
         }
 
-        btn.setMessage(Text.literal(iaexp$labelFor(newMode)));
+        btn.setMessage(Component.literal(iaexp$labelFor(newMode)));
     }
 
     /** 根据筛选模式返回按钮显示文字（短词，适配 48px 宽） */
@@ -191,12 +191,12 @@ public abstract class MixinAlchemyTableScreen {
         if (mode == null) return "?";
         switch (mode) {
             case DIRECT_ONLY:
-                return Text.translatable("itemalchemy-expansion.filter_button.direct").getString();
+                return Component.translatable("itemalchemy-expansion.filter_button.direct").getString();
             case SHULKER_ONLY:
-                return Text.translatable("itemalchemy-expansion.filter_button.shulker").getString();
+                return Component.translatable("itemalchemy-expansion.filter_button.shulker").getString();
             case ALL:
             default:
-                return Text.translatable("itemalchemy-expansion.filter_button.all").getString();
+                return Component.translatable("itemalchemy-expansion.filter_button.all").getString();
         }
     }
 }

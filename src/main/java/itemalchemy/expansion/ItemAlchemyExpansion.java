@@ -22,13 +22,13 @@ import itemalchemy.expansion.recipe.RecipeAutoPricer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.Recipe;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.util.Identifier;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.pitan76.mcpitanlib.api.command.CommandRegistry;
 
 import org.slf4j.Logger;
@@ -44,6 +44,9 @@ public class ItemAlchemyExpansion implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		itemalchemy.expansion.compat.port.CompatPayload.init();
+		ServerLifecycleEvents.SERVER_STARTING.register(server -> itemalchemy.expansion.compat.port.StackData.serverLookup(server.registryAccess()));
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> itemalchemy.expansion.compat.port.StackData.serverLookup(null));
 		IAExpServices.init();
 
 		IAExpItems.init();
@@ -55,21 +58,24 @@ public class ItemAlchemyExpansion implements ModInitializer {
 
 		// 制卡台加入 Item Alchemy 创造物品栏
 		try {
-			ItemGroupEvents.modifyEntriesEvent(
-					RegistryKey.of(RegistryKeys.ITEM_GROUP, new Identifier("itemalchemy", "item_alchemy")))
-					.register(entries -> entries.add(new ItemStack(CardForgeBlocks.FORGE_ITEM)));
+			CreativeModeTabEvents.modifyOutputEvent(
+					ResourceKey.create(Registries.CREATIVE_MODE_TAB, Identifier.fromNamespaceAndPath("itemalchemy", "item_alchemy")))
+					.register(entries -> {
+						entries.accept(new ItemStack(IAExpItems.EMC_CARD));
+						entries.accept(new ItemStack(CardForgeBlocks.FORGE_ITEM));
+					});
 		} catch (Throwable t) {
 			LOGGER.warn("[IAExp] Failed to register card forge in item group: {}", t.toString());
 		}
 
 		// 自动装置加入创造物品栏（总开关关闭时不出现在物品栏；回调内运行时判定，reload 后即时生效）
 		try {
-			ItemGroupEvents.modifyEntriesEvent(
-					RegistryKey.of(RegistryKeys.ITEM_GROUP, new Identifier("itemalchemy", "item_alchemy")))
+			CreativeModeTabEvents.modifyOutputEvent(
+					ResourceKey.create(Registries.CREATIVE_MODE_TAB, Identifier.fromNamespaceAndPath("itemalchemy", "item_alchemy")))
 					.register(entries -> {
 						if (!IAExpConfigHolder.get().automationEnabled) return;
-						entries.add(new ItemStack(EmcAutoBlocks.CONVERTER_ITEM));
-						entries.add(new ItemStack(EmcAutoBlocks.EMITTER_ITEM));
+						entries.accept(new ItemStack(EmcAutoBlocks.CONVERTER_ITEM));
+						entries.accept(new ItemStack(EmcAutoBlocks.EMITTER_ITEM));
 					});
 		} catch (Throwable t) {
 			LOGGER.warn("[IAExp] Failed to register automation blocks in item group: {}", t.toString());
@@ -157,7 +163,7 @@ public class ItemAlchemyExpansion implements ModInitializer {
 					IAExpConfigHolder.save();
 					IAExpConfigHolder.clearUpgradedFromLegacy();
 					LOGGER.info("[IAExp] new feature toast pushed to {} (legacy upgrade detected)",
-							handler.player.getEntityName());
+							handler.player.getPlainTextName());
 				}
 			} catch (Throwable t) {
 				LOGGER.warn("[IAExp] Failed to push new feature toast: {}", t.toString());
@@ -192,11 +198,11 @@ public class ItemAlchemyExpansion implements ModInitializer {
 	}
 
 	/** 缓存因总开关关闭而被移除的自动装置配方（运行时重新开启时恢复，避免重启） */
-	private static final List<Recipe<?>> removedAutomationRecipes = new ArrayList<>();
+	private static final List<net.minecraft.world.item.crafting.RecipeHolder<?>> removedAutomationRecipes = new ArrayList<>();
 
 	private static boolean isAutomationRecipe(Identifier id) {
-		return id.equals(new Identifier(MOD_ID, "emc_converter"))
-				|| id.equals(new Identifier(MOD_ID, "emc_emitter"));
+		return id.equals(Identifier.fromNamespaceAndPath(MOD_ID, "emc_converter"))
+				|| id.equals(Identifier.fromNamespaceAndPath(MOD_ID, "emc_emitter"));
 	}
 
 	/**
@@ -210,23 +216,25 @@ public class ItemAlchemyExpansion implements ModInitializer {
 		var recipeManager = server.getRecipeManager();
 		if (!enabled) {
 			if (!removedAutomationRecipes.isEmpty()) return; // 已移除
-			List<Recipe<?>> kept = new ArrayList<>();
-			for (Recipe<?> r : recipeManager.values()) {
-				if (isAutomationRecipe(r.getId())) {
+			List<net.minecraft.world.item.crafting.RecipeHolder<?>> kept = new ArrayList<>();
+			for (var r : recipeManager.getRecipes()) {
+				if (isAutomationRecipe(r.id().identifier())) {
 					removedAutomationRecipes.add(r);
 				} else {
 					kept.add(r);
 				}
 			}
 			if (!removedAutomationRecipes.isEmpty()) {
-				recipeManager.setRecipes(kept);
+				((itemalchemy.expansion.mixin.RecipeManagerAccessor) recipeManager).iaexp$setRecipes(net.minecraft.world.item.crafting.RecipeMap.create(kept));
+				recipeManager.finalizeRecipeLoading(server.overworld().enabledFeatures());
 				LOGGER.info("[IAExp] Automation disabled: removed emc_converter + emc_emitter recipes");
 			}
 		} else if (!removedAutomationRecipes.isEmpty()) {
-			List<Recipe<?>> all = new ArrayList<>(recipeManager.values());
+			List<net.minecraft.world.item.crafting.RecipeHolder<?>> all = new ArrayList<>(recipeManager.getRecipes());
 			all.addAll(removedAutomationRecipes);
 			removedAutomationRecipes.clear();
-			recipeManager.setRecipes(all);
+			((itemalchemy.expansion.mixin.RecipeManagerAccessor) recipeManager).iaexp$setRecipes(net.minecraft.world.item.crafting.RecipeMap.create(all));
+			recipeManager.finalizeRecipeLoading(server.overworld().enabledFeatures());
 			LOGGER.info("[IAExp] Automation enabled: restored emc_converter + emc_emitter recipes");
 		}
 	}

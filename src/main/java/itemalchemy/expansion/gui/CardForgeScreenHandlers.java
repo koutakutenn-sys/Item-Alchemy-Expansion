@@ -1,14 +1,14 @@
 package itemalchemy.expansion.gui;
 
 import itemalchemy.expansion.ItemAlchemyExpansion;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.screen.ScreenHandlerType;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.resources.Identifier;
 import net.pitan76.mcpitanlib.api.gui.SimpleScreenHandlerTypeBuilder;
 
 /**
- * 制卡台 ScreenHandlerType 注册。
+ * 制卡台 MenuType 注册。
  */
 public final class CardForgeScreenHandlers {
 
@@ -17,12 +17,12 @@ public final class CardForgeScreenHandlers {
     private static final SimpleScreenHandlerTypeBuilder<CardForgeScreenHandler> BUILDER =
             new SimpleScreenHandlerTypeBuilder<>(e -> new CardForgeScreenHandler(e));
 
-    /** 制卡台 ScreenHandlerType */
-    public static final ScreenHandlerType<CardForgeScreenHandler> TYPE;
+    /** 制卡台 MenuType */
+    public static final MenuType<CardForgeScreenHandler> TYPE;
 
     static {
-        TYPE = Registry.register(Registries.SCREEN_HANDLER,
-                new Identifier(ItemAlchemyExpansion.MOD_ID, "card_forge"),
+        TYPE = Registry.register(BuiltInRegistries.MENU,
+                Identifier.fromNamespaceAndPath(ItemAlchemyExpansion.MOD_ID, "card_forge"),
                 BUILDER.build());
     }
 

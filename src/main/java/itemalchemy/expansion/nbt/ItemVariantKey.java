@@ -1,10 +1,10 @@
 package itemalchemy.expansion.nbt;
 
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.util.Identifier;
-import net.minecraft.registry.Registries;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.Identifier;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.Objects;
 
@@ -46,9 +46,9 @@ public final class ItemVariantKey {
     /** 从 ItemStack 生成变体键（按配置策略计算 NBT 指纹） */
     public static ItemVariantKey fromStack(ItemStack stack, NbtFingerprinter fingerprinter) {
         Item item = stack.getItem();
-        Identifier id = Registries.ITEM.getId(item);
+        Identifier id = BuiltInRegistries.ITEM.getKey(item);
         String itemId = id.toString();
-        NbtCompound nbt = stack.getNbt();
+        CompoundTag nbt = itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt == null || nbt.isEmpty()) {
             return new ItemVariantKey(itemId, null);
         }

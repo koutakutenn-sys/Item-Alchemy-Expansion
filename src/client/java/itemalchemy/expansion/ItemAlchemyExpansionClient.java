@@ -26,6 +26,10 @@ import net.fabricmc.api.ClientModInitializer;
 public class ItemAlchemyExpansionClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
+		itemalchemy.expansion.compat.port.StackData.clientLookup(() -> {
+			var client = net.minecraft.client.Minecraft.getInstance();
+			return client.getConnection() == null ? null : client.getConnection().registryAccess();
+		});
 		// 防御性初始化配置服务（幂等；保证客户端独立运行时配置可用）
 		try {
 			IAExpServices.init();
@@ -59,7 +63,7 @@ public class ItemAlchemyExpansionClient implements ClientModInitializer {
 
 		// 制卡台 Screen 注册
 		try {
-			net.minecraft.client.gui.screen.ingame.HandledScreens.register(
+			net.minecraft.client.gui.screens.MenuScreens.register(
 					CardForgeScreenHandlers.TYPE, CardForgeScreen::new);
 		} catch (Throwable t) {
 			ItemAlchemyExpansion.LOGGER.warn("[IAExp] Failed to register card forge screen: {}", t.toString());
@@ -67,7 +71,7 @@ public class ItemAlchemyExpansionClient implements ClientModInitializer {
 
 		// EMC 转能器 Screen 注册
 		try {
-			net.minecraft.client.gui.screen.ingame.HandledScreens.register(
+			net.minecraft.client.gui.screens.MenuScreens.register(
 					EmcConverterScreenHandlers.TYPE, EmcConverterScreen::new);
 		} catch (Throwable t) {
 			ItemAlchemyExpansion.LOGGER.warn("[IAExp] Failed to register emc converter screen: {}", t.toString());
@@ -75,7 +79,7 @@ public class ItemAlchemyExpansionClient implements ClientModInitializer {
 
 		// EMC 输出器 Screen 注册（容器 GUI：左列表 + 右背包）
 		try {
-			net.minecraft.client.gui.screen.ingame.HandledScreens.register(
+			net.minecraft.client.gui.screens.MenuScreens.register(
 					EmcEmitterScreenHandlers.TYPE, EmcEmitterScreen::new);
 		} catch (Throwable t) {
 			ItemAlchemyExpansion.LOGGER.warn("[IAExp] Failed to register emc emitter screen: {}", t.toString());

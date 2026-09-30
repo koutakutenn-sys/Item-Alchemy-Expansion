@@ -283,5 +283,6 @@
   "itemalchemy-expansion.config.automationMode.tooltip": "Default: Pulse.\nContinuous: keeps working at the interval while powered.\nPulse: fires one item per redstone rising edge (like a dispenser; feed high-frequency signals).",
   "itemalchemy-expansion.config.automationMode.option.continuous": "Continuous (runs while powered)",
   "itemalchemy-expansion.config.automationMode.option.pulse": "Pulse (one item per signal)",
-  "itemalchemy-expansion.close": "Close"
+  "itemalchemy-expansion.close": "Close",
+  "key.category.itemalchemy-expansion.main": "Item Alchemy Expansion"
 }

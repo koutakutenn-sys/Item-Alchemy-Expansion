@@ -2,11 +2,11 @@ package itemalchemy.expansion.block;
 
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.config.IAExpConfigHolder;
-import net.minecraft.block.Block;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.text.Text;
-import net.minecraft.util.shape.VoxelShape;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.pitan76.mcpitanlib.api.block.ExtendBlockEntityProvider;
 import net.pitan76.mcpitanlib.api.block.args.v2.PlacementStateArgs;
 import net.pitan76.mcpitanlib.api.block.v2.CompatBlock;
@@ -55,8 +55,8 @@ public class EmcConverterBlock extends CompatBlock implements ExtendBlockEntityP
     public CompatActionResult onRightClick(BlockUseEvent e) {
         if (e.isClient()) return e.success();
         if (!IAExpConfigHolder.get().automationEnabled) {
-            e.player.getServerPlayer().ifPresent(p -> p.sendMessage(
-                    Text.translatable("itemalchemy-expansion.automation.disabled"), true));
+            e.player.getServerPlayer().ifPresent(p -> p.sendSystemMessage(
+                    Component.translatable("itemalchemy-expansion.automation.disabled"), true));
             return e.success();
         }
         BlockEntity be = e.getBlockEntity();
@@ -82,7 +82,7 @@ public class EmcConverterBlock extends CompatBlock implements ExtendBlockEntityP
         net.pitan76.mcpitanlib.midohra.util.math.Direction facing;
         try {
             net.pitan76.mcpitanlib.midohra.util.math.Direction look =
-                    net.pitan76.mcpitanlib.midohra.util.math.Direction.of(args.getCtx().getPlayerLookDirection());
+                    net.pitan76.mcpitanlib.midohra.util.math.Direction.of(args.getCtx().getNearestLookingDirection());
             facing = look.isHorizontal() ? look.getOpposite() : look;
         } catch (Throwable t) {
             facing = net.pitan76.mcpitanlib.midohra.util.math.Direction.NORTH;

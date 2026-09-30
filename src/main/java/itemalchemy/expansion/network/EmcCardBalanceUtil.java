@@ -1,7 +1,7 @@
 package itemalchemy.expansion.network;
 
 import itemalchemy.expansion.item.EmcCardItem;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
 
 import java.util.UUID;

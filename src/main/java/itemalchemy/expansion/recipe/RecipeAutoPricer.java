@@ -8,12 +8,12 @@ import itemalchemy.expansion.nbt.ItemVariantKey;
 import itemalchemy.expansion.network.AutoEmcStore;
 import itemalchemy.expansion.network.SetEmcNetwork;
 import itemalchemy.expansion.util.EmcQueryUtil;
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.Ingredient;
-import net.minecraft.recipe.Recipe;
-import net.minecraft.recipe.RecipeManager;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.World;
+import net.minecraft.world.level.Level;
 import net.pitan76.itemalchemy.EMCManager;
 
 import java.lang.reflect.Method;
@@ -108,7 +108,7 @@ public final class RecipeAutoPricer {
     // ====== 分批扫描状态（仅在服务器主线程访问，无需同步；computing 用 volatile 供快速短路） ======
     private static volatile boolean computing = false;
     private static MinecraftServer currentServer;
-    private static World currentWorld;
+    private static Level currentWorld;
     /** 当前轮待处理配方（index 游标遍历，避免 List.remove 的 O(n)） */
     private static List<Recipe<?>> queue;
     private static int queueIndex;
@@ -190,11 +190,11 @@ public final class RecipeAutoPricer {
             } catch (Throwable t) {
                 // 单条配方异常隔离（JEI safeCallPlugin 风格：不让单条影响整体扫描）
                 ItemAlchemyExpansion.debug("[IAExp] recipe threw, skipped: id={}, {}",
-                        recipe.getId(), t.toString());
+                        recipe.getSerializer(), t.toString());
             }
             long rMs = (System.nanoTime() - rStart) / 1_000_000;
             if (rMs > SLOW_RECIPE_WARN_MS) {
-                ItemAlchemyExpansion.debug("[IAExp] slow recipe ({}ms): id={}", rMs, recipe.getId());
+                ItemAlchemyExpansion.debug("[IAExp] slow recipe ({}ms): id={}", rMs, recipe.getSerializer());
             }
             processed++;
             // 每处理若干条检查一次时间预算，超限即让出主线程
@@ -231,15 +231,16 @@ public final class RecipeAutoPricer {
             ItemAlchemyExpansion.LOGGER.info("[IAExp] RecipeAutoPricer: aborting in-progress scan to restart");
             resetState();
         }
-        World world = server.getOverworld();
+        Level world = server.overworld();
         if (world == null) {
             ItemAlchemyExpansion.LOGGER.warn("[IAExp] RecipeAutoPricer: overworld is null, abort");
             return;
         }
-        RecipeManager rm = world.getRecipeManager();
+        RecipeManager rm = server.getRecipeManager();
         Collection<Recipe<?>> entries;
         try {
-            entries = rm.values();
+            entries = new ArrayList<>();
+            for (var holder : rm.getRecipes()) entries.add(holder.value());
         } catch (Throwable t) {
             ItemAlchemyExpansion.LOGGER.error("[IAExp] RecipeAutoPricer: cannot list recipes: {}", t.toString());
             return;
@@ -364,14 +365,14 @@ public final class RecipeAutoPricer {
      * @param deferred  延迟列表：材料未定价时加入此列表等待下轮
      * @param forceLast 强制轮：材料缺失按 0 计
      */
-    private static void processRecipe(Recipe<?> recipe, World world,
+    private static void processRecipe(Recipe<?> recipe, Level world,
             Map<String, Long> acc, List<Recipe<?>> deferred, boolean forceLast) {
         if (recipe == null) return;
 
         ItemStack outStack = extractOutput(recipe, world);
         if (outStack == null || outStack.isEmpty()) {
             ItemAlchemyExpansion.debug("[IAExp] recipe skipped (output empty after init): id={}",
-                    recipe.getId());
+                    recipe.getSerializer());
             return;
         }
 
@@ -384,7 +385,7 @@ public final class RecipeAutoPricer {
             try {
                 if (EMCManager.defaultEMCMap.containsKey(itemId)) {
                     ItemAlchemyExpansion.debug("[IAExp] recipe skipped (upstream defined): id={}, itemId={}",
-                            recipe.getId(), itemId);
+                            recipe.getSerializer(), itemId);
                     return;
                 }
             } catch (Throwable ignore) {}
@@ -406,7 +407,7 @@ public final class RecipeAutoPricer {
             }
             ItemStack[] stacks;
             try {
-                stacks = ie.ingredient.getMatchingStacks();
+                stacks = ie.ingredient.items().map(ItemStack::new).toArray(ItemStack[]::new);
             } catch (Throwable t) {
                 // 某些模组 Ingredient 实现可能在 getMatchingStacks 抛异常
                 allInputsKnown = false;
@@ -436,7 +437,7 @@ public final class RecipeAutoPricer {
 
         if (totalEmc <= 0) {
             ItemAlchemyExpansion.debug("[IAExp] recipe skipped (totalEmc=0): id={}, itemId={}",
-                    recipe.getId(), itemId);
+                    recipe.getSerializer(), itemId);
             return;
         }
         if (!allInputsKnown && !forceLast) {
@@ -449,7 +450,7 @@ public final class RecipeAutoPricer {
         acc.merge(vkStr, totalEmc, Math::min);
 
         ItemAlchemyExpansion.debug("[IAExp] RecipeAutoPricer: priced {} -> {} (recipe={})",
-                vkStr, totalEmc, recipe.getId());
+                vkStr, totalEmc, recipe.getSerializer());
     }
 
     /**
@@ -507,7 +508,7 @@ public final class RecipeAutoPricer {
      * 尝试反射调用 {@code recipe.init()}（若存在）后重新取输出。
      * init() 是幂等的（调用后 raw=null，重复调用安全）。</p>
      */
-    private static ItemStack extractOutput(Recipe<?> recipe, World world) {
+    private static ItemStack extractOutput(Recipe<?> recipe, Level world) {
         ItemStack result = tryGetOutput(recipe, world);
         if (result == null || result.isEmpty()) {
             // 尝试 init() 后重试（TACZ 延迟构建）
@@ -518,7 +519,7 @@ public final class RecipeAutoPricer {
     }
 
     /** 实际尝试获取输出（不含 init 重试逻辑） */
-    private static ItemStack tryGetOutput(Recipe<?> recipe, World world) {
+    private static ItemStack tryGetOutput(Recipe<?> recipe, Level world) {
         Method m = findNoArgMethod(recipe.getClass(), "getOutput", GET_OUTPUT_CACHE);
         if (m != null) {
             try {
@@ -536,7 +537,12 @@ public final class RecipeAutoPricer {
         }
         // 回退：1.20.1 yarn 中 Recipe.getOutput(DynamicRegistryManager) 返回 ItemStack
         try {
-            return recipe.getOutput(world.getRegistryManager());
+            var context = net.minecraft.world.item.crafting.display.SlotDisplayContext.fromLevel(world);
+            for (var display : recipe.display()) {
+                ItemStack result = display.result().resolveForFirstStack(context);
+                if (!result.isEmpty()) return result;
+            }
+            return ItemStack.EMPTY;
         } catch (Throwable t) {
             return ItemStack.EMPTY;
         }
@@ -578,8 +584,9 @@ public final class RecipeAutoPricer {
 
         // 回退：getIngredients()（原版默认实现）
         try {
-            for (Ingredient ing : recipe.getIngredients()) {
-                if (ing != null) result.add(new InputEntry(ing, 1));
+            var placement = recipe.placementInfo();
+            for (int index : placement.slotsToIngredientIndex()) {
+                if (index >= 0) result.add(new InputEntry(placement.ingredients().get(index), 1));
             }
         } catch (Throwable ignore) {}
         return result;

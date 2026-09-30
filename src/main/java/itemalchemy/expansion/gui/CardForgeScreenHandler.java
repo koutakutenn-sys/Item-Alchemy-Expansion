@@ -2,9 +2,9 @@ package itemalchemy.expansion.gui;
 
 import itemalchemy.expansion.block.CardForgeBlockEntity;
 import itemalchemy.expansion.item.IAExpItems;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
 import net.pitan76.mcpitanlib.api.entity.Player;
 import net.pitan76.mcpitanlib.api.gui.args.CreateMenuEvent;
 import net.pitan76.mcpitanlib.api.gui.inventory.IInventory;
@@ -32,7 +32,7 @@ public class CardForgeScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simpl
         this(e, forge, forge);
     }
 
-    private CardForgeScreenHandler(CreateMenuEvent e, Inventory forgeInv, CardForgeBlockEntity forge) {
+    private CardForgeScreenHandler(CreateMenuEvent e, Container forgeInv, CardForgeBlockEntity forge) {
         super(CardForgeScreenHandlers.TYPE, e);
         this.forge = forge;
 
@@ -47,7 +47,7 @@ public class CardForgeScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simpl
 
     @Override
     public boolean canUse(Player player) {
-        return forge == null || forge.canPlayerUse(player.getPlayerEntity());
+        return forge == null || forge.stillValid(player.getPlayerEntity());
     }
 
     @Override
@@ -74,7 +74,7 @@ public class CardForgeScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simpl
             if (!this.callInsertItem(target, 0, 2, false)) {
                 return ItemStackUtil.empty();
             }
-            stackInSlot.decrement(1);
+            stackInSlot.shrink(1);
         }
 
         if (stackInSlot.isEmpty()) {
@@ -91,12 +91,12 @@ public class CardForgeScreenHandler extends net.pitan76.mcpitanlib.api.gui.Simpl
 
     /** 制卡台卡槽：仅允许放入 EMC 卡 */
     public static class CardSlot extends Slot {
-        public CardSlot(Inventory inventory, int index, int x, int y) {
+        public CardSlot(Container inventory, int index, int x, int y) {
             super(inventory, index, x, y);
         }
 
         @Override
-        public boolean canInsert(ItemStack stack) {
+        public boolean mayPlace(ItemStack stack) {
             return stack.getItem() == IAExpItems.EMC_CARD;
         }
     }

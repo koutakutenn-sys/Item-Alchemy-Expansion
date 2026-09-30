@@ -3,11 +3,11 @@ package itemalchemy.expansion.client;
 import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.item.EmcCardItem;
 import itemalchemy.expansion.network.EmcCardNetwork;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.ItemStack;
-import net.minecraft.network.PacketByteBuf;
+import itemalchemy.expansion.compat.port.ClientPlayNetworking;
+import itemalchemy.expansion.compat.port.PacketByteBufs;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.FriendlyByteBuf;
 
 /**
  * EMC 卡客户端网络：C2S 发送充入/拿取请求 + S2C 接收打开 GUI 信号。
@@ -32,9 +32,9 @@ public final class EmcCardClientNetwork {
      */
     public static long getCardBalance() {
         if (hasBalance && cachedBalance >= 0) return cachedBalance;
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.player == null) return 0;
-        ItemStack mainHand = mc.player.getMainHandStack();
+        ItemStack mainHand = mc.player.getMainHandItem();
         if (mainHand.isEmpty() || !(mainHand.getItem() instanceof EmcCardItem)) return 0;
         return EmcCardItem.getStoredEmc(mainHand);
     }
@@ -42,7 +42,7 @@ public final class EmcCardClientNetwork {
     /** 客户端发送充入请求（C2S）。 */
     public static void sendDeposit(long amount) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeLong(amount);
             ClientPlayNetworking.send(EmcCardNetwork.DEPOSIT_ID, buf);
         } catch (Throwable t) {
@@ -53,7 +53,7 @@ public final class EmcCardClientNetwork {
     /** 客户端发送拿取请求（C2S）。 */
     public static void sendWithdraw(long amount) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeLong(amount);
             ClientPlayNetworking.send(EmcCardNetwork.WITHDRAW_ID, buf);
         } catch (Throwable t) {
@@ -64,7 +64,7 @@ public final class EmcCardClientNetwork {
     /** 客户端发送配置请求（C2S） */
     public static void sendConfig(byte action, long value) {
         try {
-            PacketByteBuf buf = PacketByteBufs.create();
+            FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeByte(action);
             buf.writeLong(value);
             ClientPlayNetworking.send(EmcCardNetwork.CONFIG_ID, buf);
@@ -82,9 +82,9 @@ public final class EmcCardClientNetwork {
                         try {
                             cachedBalance = balance;
                             hasBalance = true;
-                            MinecraftClient mc = MinecraftClient.getInstance();
+                            Minecraft mc = Minecraft.getInstance();
                             if (mc == null || mc.player == null) return;
-                            mc.setScreen(new EmcCardMainScreen());
+                            mc.setScreenAndShow(new EmcCardMainScreen());
                         } catch (Throwable t) {
                             ItemAlchemyExpansion.LOGGER.warn("[IAExp] failed to open emc card screen: {}", t.toString());
                         }

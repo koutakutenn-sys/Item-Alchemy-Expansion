@@ -4,8 +4,8 @@ import itemalchemy.expansion.ItemAlchemyExpansion;
 import itemalchemy.expansion.config.IAExpConfig;
 import itemalchemy.expansion.config.IAExpConfigHolder;
 import itemalchemy.expansion.nbt.ShulkerBoxSupport;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
 import net.pitan76.mcpitanlib.api.entity.Player;
 import net.pitan76.itemalchemy.gui.slot.RegisterSlot;
 import org.spongepowered.asm.mixin.Mixin;
@@ -46,7 +46,7 @@ public abstract class MixinRegisterSlot {
     /** 客户端 Toast 类是否已确认可用（false 表示反射失败，不再尝试） */
     private static boolean clientToastResolved = false;
 
-    @Inject(method = "canInsert(Lnet/minecraft/item/ItemStack;)Z", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "method_7680(Lnet/minecraft/world/item/ItemStack;)Z", at = @At("HEAD"), cancellable = true, remap = false)
     private void iaexp$shulkerCanInsert(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
         if (!ShulkerBoxSupport.isShulkerBox(stack)) return;
 
@@ -79,9 +79,9 @@ public abstract class MixinRegisterSlot {
                 }
             }
             // 服务端 / Toast 调用失败：用原版聊天消息作为后备
-            Text msg = Text.translatable(
+            Component msg = Component.translatable(
                     "itemalchemy-expansion.shulker_box.no_emc_item",
-                    noEmcItem.getName());
+                    noEmcItem.getHoverName());
             player.sendMessage(msg);
         } catch (Throwable t) {
             ItemAlchemyExpansion.LOGGER.warn(

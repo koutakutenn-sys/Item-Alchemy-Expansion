@@ -2,10 +2,10 @@ package itemalchemy.expansion.item;
 
 import itemalchemy.expansion.network.CardAccountStore;
 import itemalchemy.expansion.network.EmcCardNetwork;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtList;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.mcpitanlib.api.event.item.ItemAppendTooltipEvent;
 import net.pitan76.mcpitanlib.api.event.item.ItemUseEvent;
@@ -40,7 +40,7 @@ public class EmcCardItem extends CompatItem {
     /** NBT 键：快捷充能金额（long，默认 1000） */
     public static final String QUICK_AMOUNT_KEY = "quick_amount";
 
-    /** NBT 键：交易记录列表（NbtList，每项为 NbtCompound） */
+    /** NBT 键：交易记录列表（ListTag，每项为 CompoundTag） */
     public static final String TRANSACTIONS_KEY = "transactions";
 
     /** 交易记录最大条数 */
@@ -90,14 +90,14 @@ public class EmcCardItem extends CompatItem {
 
     public static long getStoredEmc(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return 0L;
-        NbtCompound nbt = stack.getNbt();
+        CompoundTag nbt = itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt == null || !nbt.contains(STORED_EMC_KEY)) return 0L;
-        return nbt.getLong(STORED_EMC_KEY);
+        return nbt.getLongOr(STORED_EMC_KEY, 0L);
     }
 
     public static void setStoredEmc(ItemStack stack, long emc) {
         if (stack == null || stack.isEmpty()) return;
-        stack.getOrCreateNbt().putLong(STORED_EMC_KEY, Math.max(0L, emc));
+        itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putLong(STORED_EMC_KEY, Math.max(0L, emc));
     }
 
     /**
@@ -130,9 +130,9 @@ public class EmcCardItem extends CompatItem {
 
     /** 返回可见性值（默认 public） */
     public static String getVisibility(ItemStack stack) {
-        NbtCompound nbt = stack == null ? null : stack.getNbt();
+        CompoundTag nbt = stack == null ? null : itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt != null && nbt.contains(VISIBILITY_KEY)) {
-            return nbt.getString(VISIBILITY_KEY);
+            return nbt.getStringOr(VISIBILITY_KEY, "");
         }
         return VISIBILITY_PUBLIC;
     }
@@ -140,15 +140,15 @@ public class EmcCardItem extends CompatItem {
     /** 设置可见性；非 public 一律视为 private */
     public static void setVisibility(ItemStack stack, boolean privateCard) {
         if (stack == null || stack.isEmpty()) return;
-        stack.getOrCreateNbt().putString(VISIBILITY_KEY,
+        itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putString(VISIBILITY_KEY,
                 privateCard ? VISIBILITY_PRIVATE : VISIBILITY_PUBLIC);
     }
 
     /** 返回私有卡绑定的玩家 UUID（String），未私有时返回 null */
     public static String getOwnerUuid(ItemStack stack) {
-        NbtCompound nbt = stack == null ? null : stack.getNbt();
+        CompoundTag nbt = stack == null ? null : itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt != null && nbt.contains(OWNER_UUID_KEY)) {
-            String s = nbt.getString(OWNER_UUID_KEY);
+            String s = nbt.getStringOr(OWNER_UUID_KEY, "");
             return s.isEmpty() ? null : s;
         }
         return null;
@@ -158,17 +158,17 @@ public class EmcCardItem extends CompatItem {
     public static void setOwnerUuid(ItemStack stack, String ownerUuid) {
         if (stack == null || stack.isEmpty()) return;
         if (ownerUuid == null || ownerUuid.isEmpty()) {
-            stack.getOrCreateNbt().remove(OWNER_UUID_KEY);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).remove(OWNER_UUID_KEY);
         } else {
-            stack.getOrCreateNbt().putString(OWNER_UUID_KEY, ownerUuid);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putString(OWNER_UUID_KEY, ownerUuid);
         }
     }
 
     /** 返回卡的关联组 UUID（String），未关联返回 null */
     public static String getLinkGroup(ItemStack stack) {
-        NbtCompound nbt = stack == null ? null : stack.getNbt();
+        CompoundTag nbt = stack == null ? null : itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt != null && nbt.contains(LINK_GROUP_KEY)) {
-            String s = nbt.getString(LINK_GROUP_KEY);
+            String s = nbt.getStringOr(LINK_GROUP_KEY, "");
             return s.isEmpty() ? null : s;
         }
         return null;
@@ -178,18 +178,18 @@ public class EmcCardItem extends CompatItem {
     public static void setLinkGroup(ItemStack stack, String groupId) {
         if (stack == null || stack.isEmpty()) return;
         if (groupId == null || groupId.isEmpty()) {
-            stack.getOrCreateNbt().remove(LINK_GROUP_KEY);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).remove(LINK_GROUP_KEY);
         } else {
-            stack.getOrCreateNbt().putString(LINK_GROUP_KEY, groupId);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putString(LINK_GROUP_KEY, groupId);
         }
     }
 
     /** 某玩家是否可使用该卡（公有卡人人可用；私有卡仅主人可用） */
-    public static boolean canUse(ItemStack stack, net.minecraft.server.network.ServerPlayerEntity player) {
+    public static boolean canUse(ItemStack stack, net.minecraft.server.level.ServerPlayer player) {
         if (isPublic(stack)) return true;
         String owner = getOwnerUuid(stack);
         if (owner == null) return true; // 私有但无主人（异常态）放行，避免卡死
-        return owner.equalsIgnoreCase(player.getUuidAsString());
+        return owner.equalsIgnoreCase(player.getStringUUID());
     }
 
     // ==================== 绑定（同步指定玩家 EMC） ====================
@@ -201,9 +201,9 @@ public class EmcCardItem extends CompatItem {
 
     /** 返回绑定的玩家 UUID（String），未绑定返回 null */
     public static String getBindUuid(ItemStack stack) {
-        NbtCompound nbt = stack == null ? null : stack.getNbt();
+        CompoundTag nbt = stack == null ? null : itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt != null && nbt.contains(BIND_UUID_KEY)) {
-            String s = nbt.getString(BIND_UUID_KEY);
+            String s = nbt.getStringOr(BIND_UUID_KEY, "");
             return s.isEmpty() ? null : s;
         }
         return null;
@@ -213,17 +213,17 @@ public class EmcCardItem extends CompatItem {
     public static void setBindUuid(ItemStack stack, String uuid) {
         if (stack == null || stack.isEmpty()) return;
         if (uuid == null || uuid.isEmpty()) {
-            stack.getOrCreateNbt().remove(BIND_UUID_KEY);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).remove(BIND_UUID_KEY);
         } else {
-            stack.getOrCreateNbt().putString(BIND_UUID_KEY, uuid);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putString(BIND_UUID_KEY, uuid);
         }
     }
 
     /** 返回绑定的玩家名（String），未绑定返回 null */
     public static String getBindName(ItemStack stack) {
-        NbtCompound nbt = stack == null ? null : stack.getNbt();
+        CompoundTag nbt = stack == null ? null : itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt != null && nbt.contains(BIND_NAME_KEY)) {
-            String s = nbt.getString(BIND_NAME_KEY);
+            String s = nbt.getStringOr(BIND_NAME_KEY, "");
             return s.isEmpty() ? null : s;
         }
         return null;
@@ -233,17 +233,17 @@ public class EmcCardItem extends CompatItem {
     public static void setBindName(ItemStack stack, String name) {
         if (stack == null || stack.isEmpty()) return;
         if (name == null || name.isEmpty()) {
-            stack.getOrCreateNbt().remove(BIND_NAME_KEY);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).remove(BIND_NAME_KEY);
         } else {
-            stack.getOrCreateNbt().putString(BIND_NAME_KEY, name);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putString(BIND_NAME_KEY, name);
         }
     }
 
     /** 单次支出限额（0 表示不限） */
     public static long getBindSingleLimit(ItemStack stack) {
-        NbtCompound nbt = stack == null ? null : stack.getNbt();
+        CompoundTag nbt = stack == null ? null : itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt != null && nbt.contains(BIND_SINGLE_LIMIT_KEY)) {
-            long v = nbt.getLong(BIND_SINGLE_LIMIT_KEY);
+            long v = nbt.getLongOr(BIND_SINGLE_LIMIT_KEY, 0L);
             return v > 0 ? v : 0L;
         }
         return 0L;
@@ -253,17 +253,17 @@ public class EmcCardItem extends CompatItem {
     public static void setBindSingleLimit(ItemStack stack, long limit) {
         if (stack == null || stack.isEmpty()) return;
         if (limit <= 0) {
-            stack.getOrCreateNbt().remove(BIND_SINGLE_LIMIT_KEY);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).remove(BIND_SINGLE_LIMIT_KEY);
         } else {
-            stack.getOrCreateNbt().putLong(BIND_SINGLE_LIMIT_KEY, limit);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putLong(BIND_SINGLE_LIMIT_KEY, limit);
         }
     }
 
     /** 总额度限制（玩家 EMC 需保持的最小值；0 表示关闭） */
     public static long getBindTotalLimit(ItemStack stack) {
-        NbtCompound nbt = stack == null ? null : stack.getNbt();
+        CompoundTag nbt = stack == null ? null : itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt != null && nbt.contains(BIND_TOTAL_LIMIT_KEY)) {
-            long v = nbt.getLong(BIND_TOTAL_LIMIT_KEY);
+            long v = nbt.getLongOr(BIND_TOTAL_LIMIT_KEY, 0L);
             return v > 0 ? v : 0L;
         }
         return 0L;
@@ -273,9 +273,9 @@ public class EmcCardItem extends CompatItem {
     public static void setBindTotalLimit(ItemStack stack, long limit) {
         if (stack == null || stack.isEmpty()) return;
         if (limit <= 0) {
-            stack.getOrCreateNbt().remove(BIND_TOTAL_LIMIT_KEY);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).remove(BIND_TOTAL_LIMIT_KEY);
         } else {
-            stack.getOrCreateNbt().putLong(BIND_TOTAL_LIMIT_KEY, limit);
+            itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putLong(BIND_TOTAL_LIMIT_KEY, limit);
         }
     }
 
@@ -298,26 +298,26 @@ public class EmcCardItem extends CompatItem {
 
     public static boolean isQuickChargeEnabled(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
-        NbtCompound nbt = stack.getNbt();
-        return nbt != null && nbt.getBoolean(QUICK_CHARGE_KEY);
+        CompoundTag nbt = itemalchemy.expansion.compat.port.StackData.getNbt(stack);
+        return nbt != null && nbt.getBooleanOr(QUICK_CHARGE_KEY, false);
     }
 
     public static void setQuickChargeEnabled(ItemStack stack, boolean enabled) {
         if (stack == null || stack.isEmpty()) return;
-        stack.getOrCreateNbt().putBoolean(QUICK_CHARGE_KEY, enabled);
+        itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putBoolean(QUICK_CHARGE_KEY, enabled);
     }
 
     public static long getQuickChargeAmount(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return DEFAULT_QUICK_AMOUNT;
-        NbtCompound nbt = stack.getNbt();
+        CompoundTag nbt = itemalchemy.expansion.compat.port.StackData.getNbt(stack);
         if (nbt == null || !nbt.contains(QUICK_AMOUNT_KEY)) return DEFAULT_QUICK_AMOUNT;
-        long val = nbt.getLong(QUICK_AMOUNT_KEY);
+        long val = nbt.getLongOr(QUICK_AMOUNT_KEY, 0L);
         return val > 0 ? val : DEFAULT_QUICK_AMOUNT;
     }
 
     public static void setQuickChargeAmount(ItemStack stack, long amount) {
         if (stack == null || stack.isEmpty()) return;
-        stack.getOrCreateNbt().putLong(QUICK_AMOUNT_KEY, Math.max(1L, amount));
+        itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack).putLong(QUICK_AMOUNT_KEY, Math.max(1L, amount));
     }
 
     // ==================== 交易记录 ====================
@@ -325,9 +325,9 @@ public class EmcCardItem extends CompatItem {
     /** 添加一笔交易记录，超过 {@link #MAX_TRANSACTIONS} 条时移除最旧的 */
     public static void addTransaction(ItemStack stack, byte type, long amount) {
         if (stack == null || stack.isEmpty()) return;
-        NbtCompound nbt = stack.getOrCreateNbt();
-        NbtList list = nbt.getList(TRANSACTIONS_KEY, NbtList.COMPOUND_TYPE);
-        NbtCompound entry = new NbtCompound();
+        var nbt = itemalchemy.expansion.compat.port.StackData.getOrCreateNbt(stack);
+        ListTag list = nbt.getListOrEmpty(TRANSACTIONS_KEY);
+        CompoundTag entry = new CompoundTag();
         entry.putByte("type", type);
         entry.putLong("amount", amount);
         entry.putLong("time", System.currentTimeMillis());
@@ -338,12 +338,12 @@ public class EmcCardItem extends CompatItem {
         nbt.put(TRANSACTIONS_KEY, list);
     }
 
-    /** 返回交易记录列表（NbtList of NbtCompound），可能为空 */
-    public static NbtList getTransactions(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return new NbtList();
-        NbtCompound nbt = stack.getNbt();
-        if (nbt == null) return new NbtList();
-        return nbt.getList(TRANSACTIONS_KEY, NbtList.COMPOUND_TYPE);
+    /** 返回交易记录列表（ListTag of CompoundTag），可能为空 */
+    public static ListTag getTransactions(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return new ListTag();
+        CompoundTag nbt = itemalchemy.expansion.compat.port.StackData.getNbt(stack);
+        if (nbt == null) return new ListTag();
+        return nbt.getListOrEmpty(TRANSACTIONS_KEY);
     }
 
     // ==================== 铁砧合并 ====================

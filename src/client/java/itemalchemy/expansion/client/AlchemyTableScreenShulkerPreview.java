@@ -7,13 +7,13 @@ import itemalchemy.expansion.config.IAExpConfigHolder;
 import itemalchemy.expansion.nbt.ShulkerBoxSupport;
 import itemalchemy.expansion.search.SearchMatcher;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.network.chat.Component;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.client.screen.AlchemyTableScreen;
 import net.pitan76.itemalchemy.gui.screen.AlchemyTableScreenHandler;
@@ -26,13 +26,13 @@ import org.lwjgl.glfw.GLFW;
  * <p>预览位置优先放在鼠标左上方（避开原版 tooltip 的默认右下方位置），空间不足时回退右下方。
  * 整体通过 {@code matrices.translate(0, 0, Z_LAYER)} 提升 z-level 到所有普通 UI 之上，
  * 避免被槽位图标 / tooltip 遮挡；数量文字额外 {@code translate(0, 0, 250)} 高于图标层。
- * EMC 用 {@link String#format} 预格式化为 String 再传入 {@link Text#translatable}，
+ * EMC 用 {@link String#format} 预格式化为 String 再传入 {@link Component#translatable}，
  * 避免 {@code %,d} 格式化 long 参数时的渲染问题。</p>
  *
  * <p><b>让出条件</b>：配置关闭 / 已装 ShulkerBoxTooltip / 未按 Shift / 非潜影盒。</p>
  *
  * <p><b>焦点实现</b>：SHIFT 激活时可用 WASD / 方向键移动白色焦点方块，焦点格在面板上方
- * 显示物品名 + 单格 EMC + 总和。通过 {@link InputUtil#isKeyPressed} 轮询按键状态，
+ * 显示物品名 + 单格 EMC + 总和。通过 {@link InputConstants#isKeyPressed} 轮询按键状态，
  * {@code MOVE_INTERVAL_MS} 节流避免焦点移动过快；搜索框聚焦时不响应方向键。</p>
  */
 public final class AlchemyTableScreenShulkerPreview {
@@ -90,7 +90,8 @@ public final class AlchemyTableScreenShulkerPreview {
      * 在 {@code SimpleInventoryScreen.renderOverride} 返回后（即 tooltip 渲染之后）触发，
      * 确保 Shift 预览面板渲染在原版 tooltip <b>之上</b>，不被遮挡。
      */
-    public static void onAfterRender(AlchemyTableScreen screen, DrawContext context, int mouseX, int mouseY, float delta) {
+    public static void onAfterRender(AlchemyTableScreen screen, GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        invocations++;
         IAExpConfig config;
         try {
             config = IAExpConfigHolder.get();
@@ -112,18 +113,18 @@ public final class AlchemyTableScreenShulkerPreview {
             // 防御性
         }
 
-        if (!Screen.hasShiftDown()) {
+        if (!net.minecraft.client.Minecraft.getInstance().hasShiftDown()) {
             deactivate();
             return;
         }
 
-        Slot hovered = GuiRenderUtil.getHoveredSlot(screen);
-        if (hovered == null || !hovered.hasStack()) {
+        Slot hovered = GuiRenderUtil.getHoveredSlot(screen, mouseX, mouseY);
+        if (hovered == null || !hovered.hasItem()) {
             deactivate();
             return;
         }
 
-        ItemStack shulkerBox = hovered.getStack();
+        ItemStack shulkerBox = hovered.getItem();
         if (!ShulkerBoxSupport.isShulkerBox(shulkerBox)) {
             deactivate();
             return;
@@ -160,8 +161,20 @@ public final class AlchemyTableScreenShulkerPreview {
         focusCol = -1;
     }
 
+    /** 诊断/自动化测试用：Shift 预览当前是否处于激活渲染状态。 */
+    public static boolean isPreviewActive() {
+        return wasActive && focusRow >= 0;
+    }
+
+    /** 诊断用：onAfterRender 自客户端启动以来被调用的次数（0 表示渲染钩子未生效）。 */
+    private static int invocations = 0;
+
+    public static int diagnosticInvocationCount() {
+        return invocations;
+    }
+
     /**
-     * 通过 {@link InputUtil#isKeyPressed} 轮询按键状态，移动焦点。
+     * 通过 {@link InputConstants#isKeyPressed} 轮询按键状态，移动焦点。
      *
      * <p>用 {@code MOVE_INTERVAL_MS} 节流：按住按键时每 180ms 移动一格，
      * 避免焦点移动过快。搜索框聚焦时不响应方向键（让搜索框正常处理光标移动）。</p>
@@ -170,8 +183,8 @@ public final class AlchemyTableScreenShulkerPreview {
         long now = System.currentTimeMillis();
         if (now - lastMoveTime < MOVE_INTERVAL_MS) return;
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        long handle = client.getWindow().getHandle();
+        Minecraft client = Minecraft.getInstance();
+        long handle = client.getWindow().handle();
 
         // 搜索框聚焦时不响应方向键，让搜索框正常处理光标移动
         boolean searchFocused = false;
@@ -186,16 +199,16 @@ public final class AlchemyTableScreenShulkerPreview {
         int newCol = focusCol;
 
         // WASD 或方向键，循环环绕
-        if (InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_W) || InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_UP)) {
+        if (InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_W) || InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_UP)) {
             newRow = (focusRow - 1 + ROWS) % ROWS;
             moved = true;
-        } else if (InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_S) || InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_DOWN)) {
+        } else if (InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_S) || InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_DOWN)) {
             newRow = (focusRow + 1) % ROWS;
             moved = true;
-        } else if (InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_A) || InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_LEFT)) {
+        } else if (InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_A) || InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_LEFT)) {
             newCol = (focusCol - 1 + COLS) % COLS;
             moved = true;
-        } else if (InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_D) || InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_RIGHT)) {
+        } else if (InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_D) || InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_RIGHT)) {
             newCol = (focusCol + 1) % COLS;
             moved = true;
         }
@@ -210,7 +223,7 @@ public final class AlchemyTableScreenShulkerPreview {
     /**
      * 绘制 9×3 预览面板（含标题行 + 焦点高亮 + 焦点格物品名标签）。
      */
-    private static void renderPreview(DrawContext context, int mouseX, int mouseY, ItemStack shulkerBox,
+    private static void renderPreview(GuiGraphicsExtractor context, int mouseX, int mouseY, ItemStack shulkerBox,
                                       SearchMatcher.SearchContext searchCtx) {
         // 单次 NBT 解析同时获取内容物列表和 EMC 总和，避免双重解析
         ShulkerBoxSupport.ContentsAndEmc cae = ShulkerBoxSupport.getContentsAndSumEmc(shulkerBox);
@@ -218,9 +231,9 @@ public final class AlchemyTableScreenShulkerPreview {
         int bgWidth = COLS * SLOT_SIZE + PADDING * 2;
         int bgHeight = PADDING + TITLE_HEIGHT + 2 + ROWS * SLOT_SIZE + PADDING;
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        int screenW = client.getWindow().getScaledWidth();
-        int screenH = client.getWindow().getScaledHeight();
+        Minecraft client = Minecraft.getInstance();
+        int screenW = client.getWindow().getGuiScaledWidth();
+        int screenH = client.getWindow().getGuiScaledHeight();
 
         // 优先放在鼠标左上方，避开原版 tooltip 的默认右下方位置
         int x = mouseX - bgWidth - MOUSE_OFFSET;
@@ -234,8 +247,8 @@ public final class AlchemyTableScreenShulkerPreview {
         if (y < 0) y = 0;
 
         // 提升 z-level 到所有普通 UI 之上
-        context.getMatrices().push();
-        context.getMatrices().translate(0, 0, Z_LAYER);
+        context.pose().pushMatrix();
+        context.nextStratum();
 
         try {
             // 背景 high alpha 避免下方图标透过来
@@ -244,9 +257,9 @@ public final class AlchemyTableScreenShulkerPreview {
 
             // 标题：潜影盒名称 + EMC 之和，复用已解析的 cae.sumEmc
             String sumEmcStr = String.format("%,d", cae.sumEmc);
-            Text title = Text.translatable("itemalchemy-expansion.shulker_box.preview_title",
-                    shulkerBox.getName(), sumEmcStr);
-            context.drawTextWithShadow(client.textRenderer, title, x + PADDING, y + PADDING, 0xFFFFFF);
+            Component title = Component.translatable("itemalchemy-expansion.shulker_box.preview_title",
+                    shulkerBox.getHoverName(), sumEmcStr);
+            context.text(client.font, title, x + PADDING, y + PADDING, 0xFFFFFF);
 
             int gridY = y + PADDING + TITLE_HEIGHT + 2;
 
@@ -275,18 +288,18 @@ public final class AlchemyTableScreenShulkerPreview {
                     ItemStack item = contents[idx];
                     if (item.isEmpty()) continue;
 
-                    context.drawItem(item, sx + 1, sy + 1);
+                    context.item(item, sx + 1, sy + 1);
 
                     // 数量文字提升 z 到图标之上，避免被同一格图标的高光层遮挡
                     if (item.getCount() > 1) {
                         String countText = String.valueOf(item.getCount());
-                        context.getMatrices().push();
-                        context.getMatrices().translate(0, 0, 250);
-                        context.drawTextWithShadow(client.textRenderer, countText,
-                                sx + SLOT_SIZE - client.textRenderer.getWidth(countText) - 1,
-                                sy + SLOT_SIZE - client.textRenderer.fontHeight - 1,
+                        context.pose().pushMatrix();
+                        context.nextStratum();
+                        context.text(client.font, countText,
+                                sx + SLOT_SIZE - client.font.width(countText) - 1,
+                                sy + SLOT_SIZE - client.font.lineHeight - 1,
                                 0xFFFFFF);
-                        context.getMatrices().pop();
+                        context.pose().popMatrix();
                     }
 
                     // 焦点格由白框覆盖优先级更高，红框只画在非焦点格上
@@ -301,7 +314,7 @@ public final class AlchemyTableScreenShulkerPreview {
                 renderFocus(context, client, x, gridY, bgWidth, bgHeight, screenW, contents);
             }
         } finally {
-            context.getMatrices().pop();
+            context.pose().popMatrix();
         }
     }
 
@@ -310,7 +323,7 @@ public final class AlchemyTableScreenShulkerPreview {
      *
      * <p>标签显示在面板上方（空间不足时下方），含物品名 + 单格 EMC + 总和。</p>
      */
-    private static void renderFocus(DrawContext context, MinecraftClient client,
+    private static void renderFocus(GuiGraphicsExtractor context, Minecraft client,
                                     int panelX, int gridY, int panelWidth, int panelHeight,
                                     int screenW, ItemStack[] contents) {
         int fsx = panelX + PADDING + focusCol * SLOT_SIZE;
@@ -319,30 +332,30 @@ public final class AlchemyTableScreenShulkerPreview {
         int fcy = fsy + SLOT_SIZE;
 
         // 焦点边框提升 z 到所有内容物之上
-        context.getMatrices().push();
-        context.getMatrices().translate(0, 0, 300);
+        context.pose().pushMatrix();
+        context.nextStratum();
         int white = 0xFFFFFFFF;
         // 2px 粗边框，外延 1px
         context.fill(fsx - 1, fsy - 1, fcx + 1, fsy, white);
         context.fill(fsx - 1, fcy, fcx + 1, fcy + 1, white);
         context.fill(fsx - 1, fsy, fsx, fcy, white);
         context.fill(fcx, fsy, fcx + 1, fcy, white);
-        context.getMatrices().pop();
+        context.pose().popMatrix();
 
         int focusIdx = focusRow * COLS + focusCol;
         if (focusIdx >= contents.length) return;
         ItemStack focused = contents[focusIdx];
         if (focused.isEmpty()) return;
 
-        String name = focused.getName().getString();
+        String name = focused.getHoverName().getString();
         long itemEmc = EMCManager.get(focused.getItem());
         long totalEmc = itemEmc * focused.getCount();
         String emcLine = (itemEmc > 0)
                 ? String.format("EMC: %,d × %d = %,d", itemEmc, focused.getCount(), totalEmc)
                 : String.format("EMC: 0 × %d = 0（无 EMC）", focused.getCount());
 
-        int nameWidth = client.textRenderer.getWidth(name);
-        int emcWidth = client.textRenderer.getWidth(emcLine);
+        int nameWidth = client.font.width(name);
+        int emcWidth = client.font.width(emcLine);
         int labelW = Math.max(nameWidth, emcWidth) + 8;
         int labelH = 24;
         int labelX = fsx + SLOT_SIZE / 2 - labelW / 2;
@@ -355,13 +368,13 @@ public final class AlchemyTableScreenShulkerPreview {
         if (labelX + labelW > screenW) labelX = screenW - labelW;
 
         // 标签背景与文字提升 z 到焦点边框之上
-        context.getMatrices().push();
-        context.getMatrices().translate(0, 0, 350);
+        context.pose().pushMatrix();
+        context.nextStratum();
         context.fill(labelX, labelY, labelX + labelW, labelY + labelH, 0xF0101010);
         GuiRenderUtil.drawBorder(context, labelX, labelY, labelW, labelH, 0xFF505050);
-        context.drawTextWithShadow(client.textRenderer, name, labelX + 4, labelY + 4, 0xFFFFFF);
-        context.drawTextWithShadow(client.textRenderer, emcLine, labelX + 4, labelY + 14, 0xFFFFD700);
-        context.getMatrices().pop();
+        context.text(client.font, name, labelX + 4, labelY + 4, 0xFFFFFF);
+        context.text(client.font, emcLine, labelX + 4, labelY + 14, 0xFFFFD700);
+        context.pose().popMatrix();
     }
 
     /**
@@ -370,15 +383,15 @@ public final class AlchemyTableScreenShulkerPreview {
      * <p>z=260：高于物品图标(z=0)与数量文字(z=250)，低于焦点白框(z=300)。
      * 焦点格不调用本方法，确保焦点白框优先级更高。</p>
      */
-    private static void renderRedFrame(DrawContext context, int sx, int sy) {
-        context.getMatrices().push();
-        context.getMatrices().translate(0, 0, 260);
+    private static void renderRedFrame(GuiGraphicsExtractor context, int sx, int sy) {
+        context.pose().pushMatrix();
+        context.nextStratum();
         int red = 0xFFFF3030;
         // 2px 粗边框，外延 1px
         context.fill(sx - 1, sy - 1, sx + SLOT_SIZE + 1, sy, red);                       // top
         context.fill(sx - 1, sy + SLOT_SIZE, sx + SLOT_SIZE + 1, sy + SLOT_SIZE + 1, red); // bottom
         context.fill(sx - 1, sy, sx, sy + SLOT_SIZE, red);                               // left
         context.fill(sx + SLOT_SIZE, sy, sx + SLOT_SIZE + 1, sy + SLOT_SIZE, red);       // right
-        context.getMatrices().pop();
+        context.pose().popMatrix();
     }
 }

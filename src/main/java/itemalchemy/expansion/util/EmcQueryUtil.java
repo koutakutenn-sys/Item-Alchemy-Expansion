@@ -6,10 +6,10 @@ import itemalchemy.expansion.config.IAExpConfigHolder;
 import itemalchemy.expansion.nbt.ItemVariantKey;
 import itemalchemy.expansion.network.AutoEmcStore;
 import itemalchemy.expansion.network.PreciseEmcStore;
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.Ingredient;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.mcpitanlib.api.util.ItemStackUtil;
 
@@ -20,8 +20,8 @@ import net.pitan76.mcpitanlib.api.util.ItemStackUtil;
  * 因此原本放在 Mixin 类里的 {@code resolveEmcForInput} / {@code resolveEmcForIngredient} 被移到这里。</p>
  *
  * <h3>查询优先级（始终生效，不再依赖 preciseMode 开关）</h3>
- * <p>L1（玩家精确）→ L3（自动精确）→ L2（原版 {@link EMCManager#get(net.minecraft.item.Item)}）→ L4（自动通用）→ 0。
- * L2 <b>直接调用 {@link EMCManager#contains} + {@link EMCManager#get(net.minecraft.item.Item)}</b>
+ * <p>L1（玩家精确）→ L3（自动精确）→ L2（原版 {@link EMCManager#get(net.minecraft.world.item.Item)}）→ L4（自动通用）→ 0。
+ * L2 <b>直接调用 {@link EMCManager#contains} + {@link EMCManager#get(net.minecraft.world.item.Item)}</b>
  * 而非 {@link EMCManager#get(ItemStack)}，避免触发本 Mixin 的递归（精确查询 → 查输入材料 EMC → 又查 ItemStack → 又走精确查询）。</p>
  */
 public final class EmcQueryUtil {
@@ -32,7 +32,7 @@ public final class EmcQueryUtil {
      * 计算输入物品的 EMC（用于配方自动定价）。
      *
      * <p><b>不触发 MixinEMCManager</b>（避免递归）：直接查各层，
-     * L2 使用 {@link EMCManager#get(net.minecraft.item.Item)} 按 ID 查询。</p>
+     * L2 使用 {@link EMCManager#get(net.minecraft.world.item.Item)} 按 ID 查询。</p>
      *
      * @param inStack 输入物品堆
      * @return 该堆的总 EMC（单价 × 数量）；无定价返回 0
@@ -79,7 +79,7 @@ public final class EmcQueryUtil {
      */
     public static long resolveEmcForIngredient(Ingredient ing) {
         if (ing == null) return 0;
-        ItemStack[] stacks = ing.getMatchingStacks();
+        ItemStack[] stacks = ing.items().map(ItemStack::new).toArray(ItemStack[]::new);
         if (stacks.length == 0) return 0;
         return resolveEmcForInput(stacks[0]);
     }
@@ -95,7 +95,7 @@ public final class EmcQueryUtil {
      */
     public static String resolveItemId(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return "minecraft:air";
-        Identifier id = Registries.ITEM.getId(stack.getItem());
+        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         return id == null ? "minecraft:air" : id.toString();
     }
 }
