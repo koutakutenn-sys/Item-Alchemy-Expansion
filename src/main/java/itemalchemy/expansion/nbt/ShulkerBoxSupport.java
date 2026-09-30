@@ -26,8 +26,25 @@ public final class ShulkerBoxSupport {
     public static ContentsAndEmc getContentsAndSumEmc(ItemStack stack) {
         ItemStack[] contents=getContents(stack);
         long sum=isShulkerBox(stack)?EMCManager.get(stack.getItem()):0;
-        for(ItemStack content:contents) if(!content.isEmpty()) sum=Math.addExact(sum,Math.multiplyExact(EMCManager.get(content.getItem()),content.getCount()));
+        for(ItemStack content:contents) {
+            if (content.isEmpty()) continue;
+            // 饱和运算：EMC 可被 set_emc 设成接近 Long.MAX_VALUE，精确运算会在求和时抛
+            // ArithmeticException 并冒泡到方块 tick / 渲染线程导致崩服崩端；溢出时钳到 Long.MAX_VALUE
+            sum = saturatedAdd(sum, saturatedMultiply(EMCManager.get(content.getItem()), content.getCount()));
+        }
         return new ContentsAndEmc(contents,sum);
+    }
+
+    /** 饱和乘（EMC 与堆叠数均为非负）：溢出钳到 Long.MAX_VALUE，正常范围行为不变 */
+    public static long saturatedMultiply(long emc, long count) {
+        if (emc > 0 && count > 0 && emc > Long.MAX_VALUE / count) return Long.MAX_VALUE;
+        return emc * count;
+    }
+
+    /** 饱和加：非负 EMC 相加溢出时钳到 Long.MAX_VALUE，不抛异常 */
+    public static long saturatedAdd(long sum, long add) {
+        if (add > 0 && sum > Long.MAX_VALUE - add) return Long.MAX_VALUE;
+        return sum + add;
     }
     public static ItemStack findNoEmcItem(ItemStack stack) {
         for(ItemStack item:getContents(stack)) if(!item.isEmpty() && EMCManager.get(item.getItem())==0) return item;

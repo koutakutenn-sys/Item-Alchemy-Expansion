@@ -49,6 +49,10 @@ public final class PortDataSmokeTest {
         check(ItemStack.isSameItemSameComponents(box, restoredBox), "shulker serialization");
         ItemStack[] restoredContents = ShulkerBoxSupport.getContents(restoredBox);
         check(restoredContents[0].isEmpty() && restoredContents[7].getItem() == Items.POTION && restoredContents[26].getCount() == 32, "shulker slot positions preserved");
+        // 回归：潜影盒 EMC 求和不得因极端值溢出抛异常（set_emc 可写入接近 Long.MAX_VALUE 的值）
+        check(ShulkerBoxSupport.saturatedMultiply(Long.MAX_VALUE - 10, 32) == Long.MAX_VALUE, "extreme emc multiply saturates");
+        check(ShulkerBoxSupport.saturatedAdd(Long.MAX_VALUE - 1, 10) == Long.MAX_VALUE, "extreme emc add saturates");
+        check(ShulkerBoxSupport.saturatedMultiply(100, 32) == 3200 && ShulkerBoxSupport.saturatedAdd(3200, 100) == 3300, "normal-range emc math unchanged");
         CompoundTag a = new CompoundTag(), b = new CompoundTag();
         CompoundTag nestedA = new CompoundTag(), nestedB = new CompoundTag();
         nestedA.putInt("z", 1); nestedA.putInt("a", 2);
